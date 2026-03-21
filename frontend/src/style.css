@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义基础样式 */
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  .glass-card {
+    @apply bg-white border border-gray-200 rounded-2xl;
+  }
+
+  .gradient-text {
+    @apply text-primary-600;
+  }
+
+  .btn-primary {
+    @apply bg-primary-500 text-white font-medium px-6 py-3 rounded-xl hover:bg-primary-600 transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-gray-700 font-medium px-6 py-3 rounded-xl border border-gray-300 hover:border-gray-400 transition-colors duration-200;
+  }
+
+  .input-field {
+    @apply w-full px-5 py-4 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-primary-500 transition-colors duration-200 text-gray-800 placeholder-gray-400;
+  }
+
+  .format-card {
+    @apply relative p-4 rounded-xl border-2 border-gray-200 bg-white cursor-pointer transition-colors duration-200 hover:border-gray-300;
+  }
+
+  .format-card.selected {
+    @apply border-primary-500 bg-primary-50;
+  }
+
+  .format-card.recommended {
+    @apply border-accent-400;
+  }
+
+  .platform-badge {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:border-gray-300 transition-colors duration-200 cursor-pointer;
+  }
+}
+
+/* 动画效果 */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* 加载动画 */
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+/* 进度条动画 */
+.progress-bar {
+  @apply h-2 rounded-full bg-primary-500;
+}
+
+/* 响应式工具类 */
+@media (max-width: 640px) {
+  .mobile-stack {
+    @apply flex-col items-stretch;
+  }
+}

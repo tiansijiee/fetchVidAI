@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookies 一键获取 - 抖音/小红书</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .step {
+            background: #f9f9f9;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .code {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        .btn:hover { background: #1976D2; }
+        .alert {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍪 Cookies 配置指南</h1>
+
+        <div class="alert">
+            <strong>⚠️ Windows 用户注意：</strong>
+            Chrome 会锁定 cookie 数据库，需要使用以下方法之一。
+        </div>
+
+        <h2>方法 1: 使用浏览器扩展（推荐）</h2>
+
+        <div class="step">
+            <strong>步骤 1:</strong> 安装扩展
+            <a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflbdgdgkkflip" target="_blank" class="btn">安装扩展</a>
+        </div>
+
+        <div class="step">
+            <strong>步骤 2:</strong> 登录对应平台
+            <a href="https://www.douyin.com/" target="_blank" class="btn">打开抖音</a>
+            <a href="https://www.xiaohongshu.com/" target="_blank" class="btn">打开小红书</a>
+        </div>
+
+        <div class="step">
+            <strong>步骤 3:</strong> 点击扩展图标 → "Current Site" → "Export" → 复制
+        </div>
+
+        <div class="step">
+            <strong>步骤 4:</strong> 将内容保存到文件
+            <div class="code">
+                backend/cookies/douyin_cookies.txt
+                backend/cookies/xiaohongshu_cookies.txt
+            </div>
+        </div>
+
+        <h2>方法 2: 使用开发者工具</h2>
+
+        <div class="step">
+            <strong>步骤 1:</strong> 按 F12 打开开发者工具
+        </div>
+
+        <div class="step">
+            <strong>步骤 2:</strong> 切换到 "Application" 或 "应用" 标签
+        </div>
+
+        <div class="step">
+            <strong>步骤 3:</strong> 左侧找到 "Cookies" → 选择对应网站
+        </div>
+
+        <div class="step">
+            <strong>步骤 4:</strong> 手动复制重要 cookie 值（如下）
+        </div>
+
+        <h3>抖音必需的 Cookies:</h3>
+        <div class="code">
+ttwid<br>
+sessionid<br>
+passport_csrf_token
+        </div>
+
+        <h3>小红书必需的 Cookies:</h3>
+        <div class="code">
+web_session<br>
+webId<br>
+a1
+        </div>
+
+        <h2>方法 3: 书签工具（最简单）</h2>
+
+        <div class="step">
+            创建一个书签，URL 为以下代码（点击书签即可获取 cookies）:
+        </div>
+
+        <div class="code" id="bookmarklet">
+javascript:(function(){var cookies='';document.cookie.split(';').forEach(function(c){var parts=c.split('=');cookies+=parts[0].trim()+'='+encodeURIComponent(parts[1]||'')+'&';});prompt('Cookies (复制保存到文件):',cookies.slice(0,-1));})();
+        </div>
+
+        <div class="step">
+            <strong>使用方法:</strong>
+            <ol>
+                <li>在浏览器中新建书签</li>
+                <li>将上面的代码粘贴为书签 URL</li>
+                <li>在抖音/小红书页面点击书签</li>
+                <li>复制弹出的内容</li>
+            </ol>
+        </div>
+
+        <div class="alert" style="background: #e8f5e9; border-color: #4caf50;">
+            <strong>✅ 配置完成后，刷新下载页面即可使用！</strong>
+        </div>
+    </div>
+</body>
+</html>
