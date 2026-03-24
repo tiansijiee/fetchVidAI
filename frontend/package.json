@@ -10,8 +10,15 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "d3": "^7.9.0",
     "element-plus": "^2.13.6",
-    "vue": "^3.4.0"
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.1",
+    "markmap-common": "^0.15.6",
+    "markmap-lib": "^0.15.8",
+    "markmap-view": "^0.15.8",
+    "vue": "^3.4.0",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.11",

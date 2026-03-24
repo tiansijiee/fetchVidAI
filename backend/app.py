@@ -16,6 +16,14 @@ import uuid
 import threading
 import time
 
+# AI功能模块（新增）
+try:
+    from ai_routes import ai_bp, init_ai_routes
+    AI_ENABLED = True
+except ImportError as e:
+    print(f"[APP] AI模块导入失败: {e}", file=sys.stderr)
+    AI_ENABLED = False
+
 # 创建 Flask 应用
 app = Flask(__name__, static_folder='../frontend/dist')
 
@@ -652,6 +660,18 @@ if __name__ == '__main__':
     print(f"访问地址: http://localhost:{port}")
     print(f"API 地址: http://localhost:{port}/api")
     print(f"调试模式: {debug}")
+
+    # 初始化AI功能（新增）
+    if AI_ENABLED:
+        ai_ok = init_ai_routes()
+        if ai_ok:
+            app.register_blueprint(ai_bp)
+            print("AI summarization feature: Enabled")
+        else:
+            print("AI summarization feature: Not configured (please set DEEPSEEK_API_KEY in backend/.env)")
+    else:
+        print("AI总结功能: 模块未安装")
+
     print("=" * 50)
 
     app.run(host='0.0.0.0', port=port, debug=debug)

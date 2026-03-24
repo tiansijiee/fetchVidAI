@@ -9,3 +9,14 @@ yt-dlp>=2023.12.30
 
 # 工具库
 requests==2.31.0
+
+# AI相关依赖
+openai>=1.0.0  # Deepseek API兼容OpenAI SDK
+python-dotenv>=1.0.0  # 环境变量管理
+
+# 音频转写（ASR）
+openai-whisper>=20231117  # Whisper语音转文字
+
+# 导出功能
+markdown>=3.5.0  # Markdown处理
+reportlab>=4.0.0  # PDF生成（可选）
