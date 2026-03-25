@@ -344,36 +344,85 @@
                   <p class="text-xs text-gray-500">提取字幕内容并生成总结</p>
                 </div>
 
-                <!-- AI生成中状态 - 在底部显示 -->
-                <div v-if="aiStreaming && aiSummaryText" class="flex items-center gap-2 py-2 border-t border-gray-100">
-                  <div class="flex gap-1">
-                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0s"></span>
-                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
-                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
-                  </div>
-                  <span class="text-xs text-gray-500">AI正在生成中...</span>
-                </div>
-
                 <!-- 格式化总结内容 -->
                 <div v-if="parsedSummary && parsedSummary.sections.length > 0" class="space-y-6">
                   <div v-for="(section, index) in parsedSummary.sections" :key="index" class="space-y-3">
-                    <!-- 章节标题 -->
-                    <h3 class="text-base font-bold text-gray-900">{{ section.title }}</h3>
+                    <!-- 【核心知识要点】特殊样式 - 顶部间距 -->
+                    <div v-if="section.title === '核心知识要点'" class="pt-3">
+                      <!-- 标题 -->
+                      <h3 class="text-base font-bold text-gray-900">{{ section.title }}</h3>
 
-                    <!-- 章节内容 -->
-                    <div v-if="section.content" class="text-sm text-gray-700 leading-relaxed pl-4">
-                      {{ section.content }}
+                      <!-- 列表项 -->
+                      <div v-if="section.listItems && section.listItems.length > 0" class="space-y-2 mt-3">
+                        <div
+                          v-for="(item, itemIndex) in section.listItems"
+                          :key="itemIndex"
+                          class="flex items-start gap-2 text-sm text-gray-700"
+                        >
+                          <span class="text-[#1677ff] flex-shrink-0 mt-0.5">•</span>
+                          <span>{{ item }}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <!-- 列表项 -->
-                    <div v-if="section.listItems && section.listItems.length > 0" class="space-y-2">
-                      <div
-                        v-for="(item, itemIndex) in section.listItems"
-                        :key="itemIndex"
-                        class="flex items-start gap-2 text-sm text-gray-700"
-                      >
-                        <span class="text-[#1677ff] flex-shrink-0 mt-0.5">•</span>
-                        <span>{{ item }}</span>
+                    <!-- 【内容大纲】特殊样式 - 支持章节标题 -->
+                    <div v-else-if="section.title === '内容大纲'">
+                      <!-- 标题 -->
+                      <h3 class="text-base font-bold text-gray-900">{{ section.title }}</h3>
+
+                      <!-- 章节标题和列表 -->
+                      <div v-if="section.subsections && section.subsections.length > 0" class="space-y-4 mt-3">
+                        <div v-for="(subsection, subIndex) in section.subsections" :key="subIndex" class="space-y-2">
+                          <!-- 章节标题 (1. xxx) - 蓝色、16px、加粗、无缩进 -->
+                          <h4 class="text-[16px] font-bold text-[#1E40AF]">{{ subsection.title }}</h4>
+
+                          <!-- 章节列表内容 - 黑色、14px、左边缩进16px、圆点符号 -->
+                          <div v-if="subsection.listItems && subsection.listItems.length > 0" class="space-y-2 ml-4">
+                            <div
+                              v-for="(item, itemIndex) in subsection.listItems"
+                              :key="itemIndex"
+                              class="flex items-start gap-2 text-[14px] text-gray-700"
+                            >
+                              <span class="text-[#1E40AF] flex-shrink-0 mt-0.5">•</span>
+                              <span>{{ item }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- 如果没有subsections但有listItems，显示原有列表（向后兼容） -->
+                      <div v-else-if="section.listItems && section.listItems.length > 0" class="space-y-2 mt-3">
+                        <div
+                          v-for="(item, itemIndex) in section.listItems"
+                          :key="itemIndex"
+                          class="flex items-start gap-2 text-sm text-gray-700"
+                        >
+                          <span class="text-[#1677ff] flex-shrink-0 mt-0.5">•</span>
+                          <span>{{ item }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 【视频概述】和其他模块 - 保持原有样式 -->
+                    <div v-else>
+                      <!-- 标题 -->
+                      <h3 class="text-base font-bold text-gray-900">{{ section.title }}</h3>
+
+                      <!-- 章节内容 -->
+                      <div v-if="section.content" class="text-sm text-gray-700 leading-relaxed pl-4">
+                        {{ section.content }}
+                      </div>
+
+                      <!-- 列表项 -->
+                      <div v-if="section.listItems && section.listItems.length > 0" class="space-y-2">
+                        <div
+                          v-for="(item, itemIndex) in section.listItems"
+                          :key="itemIndex"
+                          class="flex items-start gap-2 text-sm text-gray-700"
+                        >
+                          <span class="text-[#1677ff] flex-shrink-0 mt-0.5">•</span>
+                          <span>{{ item }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -382,6 +431,16 @@
                 <!-- 如果解析失败，显示原始文本 -->
                 <div v-else-if="aiSummaryText" class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {{ aiSummaryText }}
+                </div>
+
+                <!-- AI生成中状态 - 在内容下方显示 -->
+                <div v-if="aiStreaming && aiSummaryText" class="flex items-center justify-center gap-2 py-3 border-t border-gray-100 mt-4">
+                  <div class="flex gap-1">
+                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+                  </div>
+                  <span class="text-xs text-gray-500">AI正在生成中...</span>
                 </div>
 
                 <!-- 空状态 -->
@@ -819,7 +878,7 @@ const formatTime = (seconds) => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-// 解析总结文本为结构化数据
+// 解析总结文本为结构化数据（扩展版，支持章节标题和核心知识要点）
 const parseSummaryText = (text) => {
   if (!text) return { sections: [] }
 
@@ -828,18 +887,21 @@ const parseSummaryText = (text) => {
   let currentSection = null
   let currentContent = []
   let currentListItems = []
+  let currentSubsections = []  // 新增：用于存储【内容大纲】的章节标题
+  let inContentOutline = false  // 标记是否在【内容大纲】模块内
 
   for (let line of lines) {
     line = line.trim()
 
-    // 检测标题（【xxx】或 # xxx）
+    // 检测主标题（【xxx】或 # xxx）
     if (line.match(/^【(.+)】$/) || line.match(/^#+\s+(.+)$/)) {
       // 保存上一个section
       if (currentSection) {
         sections.push({
           title: currentSection,
           content: currentContent.join('\n').trim(),
-          listItems: currentListItems
+          listItems: currentListItems,
+          subsections: currentSubsections  // 新增：章节标题列表
         })
       }
 
@@ -849,12 +911,40 @@ const parseSummaryText = (text) => {
       currentSection = titleMatch ? titleMatch[1] : headingMatch[1]
       currentContent = []
       currentListItems = []
+      currentSubsections = []
+
+      // 检测是否是【内容大纲】模块
+      inContentOutline = currentSection === '内容大纲'
     }
-    // 检测列表项（1. 或 - 或 •）
-    else if (line.match(/^\d+\.\s*/) || line.match(/^[-•]\s*/)) {
-      const listItem = line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim()
+    // 在【内容大纲】模块内，检测章节标题（1. xxx、2. xxx 等）
+    else if (inContentOutline && line.match(/^\d+\.\s+(.+)$/)) {
+      const titleMatch = line.match(/^\d+\.\s+(.+)$/)
+      const chapterTitle = titleMatch[1].trim()
+      if (chapterTitle) {
+        // 保存上一个章节（如果有列表项）
+        if (currentSubsections.length > 0 && currentSubsections[currentSubsections.length - 1].listItems.length === 0) {
+          // 上一个章节没有列表项，直接替换标题
+          currentSubsections[currentSubsections.length - 1].title = chapterTitle
+        } else {
+          // 创建新章节
+          currentSubsections.push({
+            title: chapterTitle,
+            listItems: []
+          })
+        }
+      }
+    }
+    // 检测列表项（- 或 •）- 注意：不再匹配 1. 开头（那是章节标题）
+    else if (line.match(/^[-•]\s*/)) {
+      const listItem = line.replace(/^[-•]\s*/, '').trim()
       if (listItem) {
-        currentListItems.push(listItem)
+        if (inContentOutline && currentSubsections.length > 0) {
+          // 在【内容大纲】内，添加到当前章节的列表
+          currentSubsections[currentSubsections.length - 1].listItems.push(listItem)
+        } else {
+          // 在其他模块内，添加到主列表
+          currentListItems.push(listItem)
+        }
       }
     }
     // 普通内容
@@ -868,7 +958,8 @@ const parseSummaryText = (text) => {
     sections.push({
       title: currentSection,
       content: currentContent.join('\n').trim(),
-      listItems: currentListItems
+      listItems: currentListItems,
+      subsections: currentSubsections
     })
   }
 
