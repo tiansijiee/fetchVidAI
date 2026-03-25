@@ -79,7 +79,7 @@ class AISummarizer:
                 messages=[
                     {
                         'role': 'system',
-                        'content': '你是一个专业的视频内容分析师，擅长总结和提炼视频的核心内容。请始终以JSON格式返回结果。'
+                        'content': '你是一个专业的视频内容分析师，擅长总结和提炼视频的核心内容。请输出格式化的纯文本总结。'
                     },
                     {
                         'role': 'user',
@@ -170,7 +170,7 @@ class AISummarizer:
                 messages=[
                     {
                         'role': 'system',
-                        'content': '你是一个专业的视频内容分析师，擅长总结和提炼视频的核心内容。请始终以纯JSON格式返回结果，不要包含任何说明文字。'
+                        'content': '你是一个专业的视频内容分析师，擅长总结和提炼视频的核心内容。请输出格式化的纯文本总结。'
                     },
                     {
                         'role': 'user',
@@ -458,7 +458,7 @@ class AISummarizer:
         if len(subtitle_text) > max_subtitle_length:
             subtitle_text = subtitle_text[:max_subtitle_length] + '...'
 
-        prompt = f"""请根据以下视频字幕内容，生成一份结构化的视频总结报告（4段式格式）。
+        prompt = f"""请根据以下视频字幕内容，生成一份结构化的视频总结报告。
 
 ## 视频信息
 标题: {video_title or '未知'}
@@ -468,37 +468,17 @@ class AISummarizer:
 {subtitle_text}
 
 ## 要求
-请以JSON格式返回，包含以下4个核心部分：
+请按以下格式输出纯文本总结：
 
-1. **overview** (string): 视频概述（100-150字）
-   - 用简洁的语言概括视频的主题、目的和核心价值
-   - 让读者快速了解视频的主要内容
+【视频概述】
+（100-150字概括视频主题和核心价值）
 
-2. **outline** (array): 内容大纲（3-5个段落）
-   每个段落包含：
-   - title: 段落标题
-   - content: 段落内容总结（80-120字）
-   - timestamp: 预估时间范围（如 "00:00-05:30"）
+【内容大纲】
+1. 章节标题
+   - 具体内容点1
+   - 具体内容点2
 
-3. **key_points** (array): 核心要点（5-8个）
-   每个要点包含：
-   - point: 要点描述
-   - importance: 重要性评分（1-5）
-   - timestamp: 相关时间点（如果可定位）
-
-4. **conclusion** (object): 总结结论
-   - summary: 总结性结论（50-100字）
-   - takeaways: 主要收获/启示（2-3条）
-   - recommendations: 推荐/建议（可选）
-
-额外字段：
-- **mindmap** (object): 思维导图结构，包含：
-  - root: 根节点主题
-  - branches: 分支数组，每个分支包含：
-    - name: 分支名称
-    - children: 子节点数组
-
-请确保返回纯JSON格式，不要包含其他说明文字。"""
+请直接输出纯文本格式，不要使用JSON代码块。"""
 
         return prompt
 

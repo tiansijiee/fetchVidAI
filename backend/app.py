@@ -323,11 +323,31 @@ def proxy_download():
                     # B站使用DASH格式，音视频分离
                     # 添加B站专用的重试和超时配置
                     ydl_opts.update({
-                        'retries': 5,  # 增加重试次数
-                        'file_access_retries': 5,
-                        'fragment_retries': 5,  # 分片重试次数
+                        'retries': 10,  # 增加重试次数
+                        'file_access_retries': 10,
+                        'fragment_retries': 10,  # 分片重试次数
                         'skip_unavailable_fragments': False,  # 不跳过失败片段
                         'ignoreerrors': False,  # 遇到错误时停止
+                        # B站专用请求头（避免HTTP 400错误）
+                        'http_headers': {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                            'Referer': 'https://www.bilibili.com/',
+                            'Accept': '*/*',
+                            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Connection': 'keep-alive',
+                            'Sec-Fetch-Dest': 'empty',
+                            'Sec-Fetch-Mode': 'cors',
+                            'Sec-Fetch-Site': 'same-site',
+                        },
+                        # 网络配置
+                        'socket_timeout': 30,
+                        # DASH配置
+                        'extractor_args': {
+                            'bilibili': {
+                                'prefer_formats': 'dash-flv,_dash-mp4,aac-flv,mp4-flv'
+                            }
+                        }
                     })
 
                     # 根据用户选择的格式ID设置下载格式
@@ -363,8 +383,9 @@ def proxy_download():
                                 'format': 'bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best',
                                 'merge_output_format': 'mp4',
                                 'http_headers': {
-                                    'Referer': video_url,
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                                    'Referer': 'https://www.bilibili.com/',
+                                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
                                 }
                             })
                             print(f"[DOWNLOAD-{task_id[:8]}] Using best format with audio merge", file=sys.stderr)

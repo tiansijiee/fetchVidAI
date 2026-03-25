@@ -6,7 +6,80 @@ AI功能路由模块 - 生产版本
 import sys
 import json
 import os
+import re
 from flask import Blueprint, request, jsonify, Response, stream_with_context
+
+
+def _parse_time_to_seconds(time_str: str) -> float:
+    """
+    将时间字符串转换为秒数
+
+    支持格式：
+    - HH:MM:SS
+    - MM:SS
+    - SS (秒数)
+    - 直接传入秒数(float/int)
+
+    Returns:
+        float: 秒数
+    """
+    if not time_str:
+        return 0.0
+
+    # 如果已经是数字类型，直接返回
+    if isinstance(time_str, (int, float)):
+        return float(time_str)
+
+    # 尝试直接转换为数字（秒）
+    try:
+        return float(time_str)
+    except (ValueError, TypeError):
+        pass
+
+    # 处理 HH:MM:SS 或 MM:SS 格式
+    time_str = str(time_str).strip()
+    parts = time_str.split(':')
+
+    try:
+        if len(parts) == 3:
+            # HH:MM:SS
+            hours, minutes, seconds = map(float, parts)
+            return hours * 3600 + minutes * 60 + seconds
+        elif len(parts) == 2:
+            # MM:SS
+            minutes, seconds = map(float, parts)
+            return minutes * 60 + seconds
+        elif len(parts) == 1:
+            # 只有数字
+            return float(parts[0])
+    except (ValueError, TypeError):
+        pass
+
+    return 0.0
+
+
+def _format_seconds_to_time(seconds: float) -> str:
+    """
+    将秒数转换为时间字符串格式 (MM:SS 或 HH:MM:SS)
+
+    Args:
+        seconds: 秒数
+
+    Returns:
+        str: 时间字符串，如 "01:23" 或 "1:23:45"
+    """
+    if not seconds or seconds < 0:
+        return "00:00"
+
+    seconds = float(seconds)
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{minutes:02d}:{secs:02d}"
 
 # 导入字幕提取器
 from subtitle_extractor import SubtitleExtractor
@@ -209,19 +282,58 @@ def summarize_video():
                 # ========== 步骤5: 使用AI生成总结（流式） ==========
                 yield f"data: {json.dumps({'type': 'progress', 'message': 'AI正在思考并生成总结...'}, ensure_ascii=False)}\n\n"
 
-                # 调用AI生成总结（非流式，因为需要完整的JSON结构）
-                result = summarizer.summarize_video(
-                    subtitle_text=subtitle_text,
-                    video_title=video_title,
-                    video_description=video_description
-                )
+                # 调用AI生成总结（流式输出纯文本）
+                try:
+                    stream = summarizer.client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[
+                            {
+                                'role': 'system',
+                                'content': '你是一个专业的视频内容分析师，擅长总结和提炼视频的核心内容。请输出格式化的纯文本总结。'
+                            },
+                            {
+                                'role': 'user',
+                                'content': f"""请根据以下视频字幕内容，生成一份结构化的视频总结报告。
 
-                if result.get('success'):
-                    # 发送最终结果
-                    yield f"data: {json.dumps({'type': 'result', 'data': result}, ensure_ascii=False)}\n\n"
+## 视频信息
+标题: {video_title or '未知'}
+描述: {video_description or '无'}
+
+## 字幕内容
+{subtitle_text}
+
+## 要求
+请按以下格式输出纯文本总结：
+
+【视频概述】
+（100-150字概括视频主题和核心价值）
+
+【内容大纲】
+1. 章节标题
+   - 具体内容点1
+   - 具体内容点2
+
+请直接输出纯文本格式，不要使用JSON代码块。"""
+                            }
+                        ],
+                        temperature=0.7,
+                        max_tokens=4000,
+                        stream=True
+                    )
+
+                    # 流式输出内容
+                    for chunk in stream:
+                        if chunk.choices[0].delta.content:
+                            content = chunk.choices[0].delta.content
+                            yield f"event: summary\ndata: {json.dumps({'token': content}, ensure_ascii=False)}\n\n"
+
+                    # 发送完成事件
+                    yield f"event: complete\ndata: {json.dumps({'message': '总结生成完成'}, ensure_ascii=False)}\n\n"
                     print(f"[AI] ✓ 总结生成成功!", file=sys.stderr)
-                else:
-                    yield f"data: {json.dumps({'type': 'error', 'message': result.get('message', 'AI总结失败')}, ensure_ascii=False)}\n\n"
+
+                except Exception as e:
+                    print(f"[AI] 总结生成错误: {e}", file=sys.stderr)
+                    yield f"data: {json.dumps({'type': 'error', 'message': f'AI总结失败: {str(e)}'}, ensure_ascii=False)}\n\n"
 
             except Exception as e:
                 print(f"[AI] 流式生成错误: {e}", file=sys.stderr)
@@ -318,16 +430,16 @@ def chat_stream():
                 )
 
                 # 发送开始事件
-                yield f"data: {json.dumps({'type': 'start', 'message': '开始生成回答'}, ensure_ascii=False)}\n\n"
+                yield f"event: start\ndata: {json.dumps({'message': '开始生成回答'}, ensure_ascii=False)}\n\n"
 
                 # 流式输出内容
                 for chunk in response:
                     if chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
-                        yield f"data: {json.dumps({'type': 'content', 'content': content}, ensure_ascii=False)}\n\n"
+                        yield f"event: content\ndata: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
 
                 # 发送完成事件
-                yield f"data: {json.dumps({'type': 'complete', 'message': '回答完成'}, ensure_ascii=False)}\n\n"
+                yield f"event: complete\ndata: {json.dumps({'message': '回答完成'}, ensure_ascii=False)}\n\n"
 
             except Exception as e:
                 print(f"[AI] 流式生成错误: {e}", file=sys.stderr)
@@ -363,12 +475,14 @@ def get_raw_subtitle():
 
         subtitle_text = None
         subtitles = []
+        segments = []  # 新格式: [{start, end, text}]
         source = 'subtitle'  # 字幕来源标识
 
         if result.get('success') and result.get('has_subtitle'):
             subtitle_text = result.get('full_text', '')
             subtitles = result.get('subtitles', [])
-            print(f"[AI] ✓ 字幕提取成功! 长度: {len(subtitle_text)}字符", file=sys.stderr)
+            segments = result.get('segments') or subtitles  # 优先使用segments
+            print(f"[AI] ✓ 字幕提取成功! 长度: {len(subtitle_text)}字符, 片段: {len(segments)}条", file=sys.stderr)
         elif use_asr and result.get('can_fallback_to_audio'):
             # 步骤2: 字幕提取失败，尝试ASR转写
             print("[AI] 步骤2: 字幕不可用，启动ASR音频转写...", file=sys.stderr)
@@ -381,8 +495,9 @@ def get_raw_subtitle():
                     if asr_result.get('success'):
                         subtitle_text = asr_result.get('full_text', '')
                         subtitles = asr_result.get('subtitles', [])
+                        segments = asr_result.get('segments') or subtitles  # 优先使用segments
                         source = 'asr'
-                        print(f"[AI] ✓ ASR转写成功! 长度: {len(subtitle_text)}字符", file=sys.stderr)
+                        print(f"[AI] ✓ ASR转写成功! 长度: {len(subtitle_text)}字符, 片段: {len(segments)}条", file=sys.stderr)
                     else:
                         print(f"[AI] ✗ ASR转写失败: {asr_result.get('message', 'Unknown')}", file=sys.stderr)
                         return jsonify({
@@ -405,13 +520,35 @@ def get_raw_subtitle():
                 'message': result.get('message', '字幕获取失败')
             }), 400
 
+        # 构建兼容多种前端组件的字幕数据
+        # 格式1: segments (新格式，用于时间轴) - {start, end, text}
+        # 格式2: subtitles (兼容旧格式) - {time, text}
+        subtitles_compatible = []
+        for seg in segments:
+            start = seg.get('start', 0)
+            end = seg.get('end', start + 3)
+            text = seg.get('text', '')
+
+            # 计算时间字符串
+            time_str = _format_seconds_to_time(start)
+
+            subtitles_compatible.append({
+                'time': time_str,
+                'start_time': time_str,
+                'end_time': _format_seconds_to_time(end),
+                'text': text,
+                'start': start,
+                'end': end
+            })
+
         # 返回字幕数据
         return jsonify({
             'success': True,
-            'subtitles': subtitles,
+            'subtitles': subtitles_compatible,
+            'segments': segments,  # 新格式: [{start, end, text}]
             'full_text': subtitle_text,
             'language': result.get('language', 'zh'),
-            'subtitle_count': len(subtitles),
+            'subtitle_count': len(segments),
             'source': source,  # 'subtitle' 或 'asr'
             'message': f'字幕获取成功 (来源: {"字幕" if source == "subtitle" else "ASR转写"})'
         })
@@ -423,4 +560,311 @@ def get_raw_subtitle():
         return jsonify({
             'success': False,
             'message': f'字幕获取失败: {str(e)[:200]}'
+        }), 500
+
+
+@ai_bp.route('/summarize/char-stream', methods=['POST'])
+def summarize_video_char_stream():
+    """
+    AI视频总结 - SSE逐字流式输出（ChatGPT风格打字机效果）
+
+    事件类型：
+    - subtitle: 发送字幕文本（一次性）
+    - summary: AI总结逐token流式发送（打字机效果）
+    - mindmap: 发送思维导图（一次性）
+    - quota: 发送用户配额信息
+    - done: 标记完成
+    - error: 错误信息
+    """
+    try:
+        print("[AI] summarize_video_char_stream called", file=sys.stderr)
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        url = data.get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'message': '请输入视频链接'}), 400
+
+        video_title = data.get('title', '视频内容')
+        video_description = data.get('description', '')
+        use_asr = data.get('use_asr', False)
+
+        print(f"[AI] Processing: {video_title[:50]}", file=sys.stderr)
+
+        def generate():
+            """SSE生成器函数 - 逐字流式输出"""
+            try:
+                # ========== 步骤1: 提取字幕（严格遵守优先级）==========
+                subtitle_text = None
+                subtitle_segments = []  # 字幕片段 [{start, end, text}]
+                source = 'unknown'
+
+                # 优先级1+2: 调用字幕提取器（内部已处理B站API优先和yt-dlp）
+                print("[AI] 步骤1: 尝试提取字幕...", file=sys.stderr)
+                subtitle_result = SubtitleExtractor.extract_subtitles(url)
+
+                if subtitle_result.get('success') and subtitle_result.get('has_subtitle'):
+                    subtitle_text = subtitle_result.get('full_text', '')
+                    subtitle_segments = subtitle_result.get('segments') or subtitle_result.get('subtitles') or []
+                    source = 'subtitle'
+                    print(f"[AI] ✓ 字幕提取成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条", file=sys.stderr)
+
+                # 优先级3: ASR兜底（如果字幕提取失败且允许ASR）
+                elif subtitle_result.get('can_fallback_to_asr') or use_asr:
+                    print("[AI] 字幕提取失败，启用ASR语音识别兜底...", file=sys.stderr)
+
+                    AudioTranscriber = get_audio_transcriber()
+                    if AudioTranscriber and AudioTranscriber.check_ffmpeg() and AudioTranscriber.check_whisper():
+                        print("[AI] 开始ASR转写...", file=sys.stderr)
+                        asr_result = AudioTranscriber.transcribe_from_url(url, model_size='tiny')
+
+                        if asr_result.get('success'):
+                            subtitle_text = asr_result.get('full_text', '')
+                            subtitle_segments = asr_result.get('segments') or asr_result.get('subtitles') or []
+                            source = 'asr'
+                            print(f"[AI] ✓ ASR转写成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条", file=sys.stderr)
+                        else:
+                            print(f"[AI] ✗ ASR转写失败: {asr_result.get('message', 'Unknown error')}", file=sys.stderr)
+                    else:
+                        print("[AI] ✗ ASR不可用（缺少ffmpeg或whisper）", file=sys.stderr)
+
+                # 检查是否有字幕
+                if not subtitle_text:
+                    yield f"event: error\ndata: {json.dumps({'message': '无法获取视频字幕或语音转写失败，请尝试其他有字幕的视频'}, ensure_ascii=False)}\n\n"
+                    return
+
+                # ========== 步骤2: 发送字幕事件 ==========
+                # 确保 subtitle_segments 包含正确的时间数据
+                if not subtitle_segments and subtitle_text:
+                    # 如果没有 segments 但有文本，生成简单的 segments
+                    lines = subtitle_text.split('\n')
+
+                    # 检查是否需要进一步分割（处理没有换行的长文本）
+                    if len(lines) == 1 and len(lines[0]) > 200:
+                        print(f"[AI] 检测到单条长文本（{len(lines[0])}字符），按句子分割", file=sys.stderr)
+                        # 按句子分割：[。！？!?；;]
+                        import re
+                        sentences = re.split(r'[。！？!?；;]', lines[0])
+                        sentences = [s.strip() for s in sentences if s.strip() and len(s.strip()) > 5]
+                        print(f"[AI] 分割成 {len(sentences)} 个句子", file=sys.stderr)
+
+                        subtitle_segments = []
+                        for idx, sentence in enumerate(sentences):
+                            start_time = idx * 5  # 每句假设5秒
+                            end_time = start_time + 5
+                            subtitle_segments.append({
+                                'start': start_time,
+                                'end': end_time,
+                                'text': sentence.strip()
+                            })
+                    else:
+                        # 正常按行分割
+                        subtitle_segments = []
+                        for idx, line in enumerate(lines):
+                            if line.strip():
+                                # 假设每行字幕约3秒
+                                start_time = idx * 3
+                                end_time = start_time + 3
+                                subtitle_segments.append({
+                                    'start': start_time,
+                                    'end': end_time,
+                                    'text': line.strip()
+                                })
+                elif subtitle_segments and len(subtitle_segments) > 0:
+                    # 检查 segments 格式并转换
+                    first_seg = subtitle_segments[0]
+
+                    # 优先检查ASR格式: {time, start_time, end_time, text}
+                    if 'start_time' in first_seg and 'start' not in first_seg:
+                        print(f"[AI] 检测到ASR格式字幕，转换时间戳格式", file=sys.stderr)
+                        converted_segments = []
+                        for seg in subtitle_segments:
+                            start_time = seg.get('start_time', '0:00:00')
+                            end_time = seg.get('end_time', '0:00:00')
+                            # 转换时间格式为秒数
+                            start_seconds = _parse_time_to_seconds(start_time)
+                            end_seconds = _parse_time_to_seconds(end_time)
+                            converted_segments.append({
+                                'start': start_seconds,
+                                'end': end_seconds,
+                                'text': seg.get('text', '')
+                            })
+                        subtitle_segments = converted_segments
+                        print(f"[AI] ✓ 字幕格式转换完成，共{len(subtitle_segments)}条", file=sys.stderr)
+
+                    # 检查旧格式: {time, text} (没有start_time/end_time)
+                    elif 'time' in first_seg and 'start' not in first_seg:
+                        print(f"[AI] 检测到旧格式字幕，重新生成时间戳", file=sys.stderr)
+                        subtitle_segments = []
+                        lines = subtitle_text.split('\n')
+                        for idx, line in enumerate(lines):
+                            if line.strip():
+                                start_time = idx * 3
+                                end_time = start_time + 3
+                                subtitle_segments.append({
+                                    'start': start_time,
+                                    'end': end_time,
+                                    'text': line.strip()
+                                })
+
+                # 构建兼容多种前端组件的字幕数据
+                # 格式1: segments (新格式，用于时间轴) - {start, end, text}
+                # 格式2: subtitles (兼容旧格式) - {time, text}
+                subtitles_compatible = []
+                for seg in subtitle_segments:
+                    start = seg.get('start', 0)
+                    end = seg.get('end', start + 3)
+                    text = seg.get('text', '')
+
+                    # 计算时间字符串
+                    time_str = _format_seconds_to_time(start)
+
+                    subtitles_compatible.append({
+                        'time': time_str,
+                        'start_time': time_str,
+                        'end_time': _format_seconds_to_time(end),
+                        'text': text,
+                        'start': start,
+                        'end': end
+                    })
+
+                yield f"event: subtitle\ndata: {json.dumps({'segments': subtitle_segments, 'subtitles': subtitles_compatible, 'text': subtitle_text, 'length': len(subtitle_text)}, ensure_ascii=False)}\n\n"
+
+                # ========== 步骤3: 检查AI服务 ==========
+                if not AI_AVAILABLE:
+                    yield f"event: error\ndata: {json.dumps({'message': 'AI服务未配置，请设置DEEPSEEK_API_KEY'}, ensure_ascii=False)}\n\n"
+                    return
+
+                # ========== 步骤4: Deepseek流式调用 - 逐token发送 ==========
+                print(f"[AI] 开始Deepseek流式调用，字幕长度: {len(subtitle_text)}", file=sys.stderr)
+
+                # 构建提示词 - 改为纯文本格式输出
+                prompt = f"""请根据以下视频字幕内容，生成一份结构化的视频总结报告。
+
+## 视频信息
+标题: {video_title}
+描述: {video_description or '无'}
+
+## 字幕内容
+{subtitle_text[:8000]}
+
+## 要求
+请按以下格式输出纯文本总结：
+
+【视频概述】
+（100-150字概括视频主题和核心价值）
+
+【内容大纲】
+1. 章节标题
+   - 具体内容点1
+   - 具体内容点2
+
+2. 章节标题
+   - 具体内容点1
+   - 具体内容点2
+
+（3-5个段落，每段80-120字）
+
+请直接输出纯文本格式，不要使用JSON代码块。"""
+
+                # 调用Deepseek API（流式）
+                stream = summarizer.client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {
+                            'role': 'system',
+                            'content': '你是一个专业的视频内容分析师，擅长总结和提炼视频的核心内容。请输出格式化的纯文本总结，包含视频概述和内容大纲。'
+                        },
+                        {
+                            'role': 'user',
+                            'content': prompt
+                        }
+                    ],
+                    temperature=0.7,
+                    max_tokens=4000,
+                    stream=True
+                )
+
+                # 逐token发送 - 直接发送纯文本token
+                full_content = ""
+                for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        token = chunk.choices[0].delta.content
+                        full_content += token
+
+                        # 逐token发送summary事件 - 直接发送token文本
+                        yield f"event: summary\ndata: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+
+                print(f"[AI] 流式完成，总长度: {len(full_content)}", file=sys.stderr)
+
+                # ========== 步骤5: 发送思维导图（基于实际总结内容） ==========
+                # 解析总结内容生成思维导图
+                mindmap_lines = []
+                mindmap_lines.append(f"# {video_title}\n")
+
+                # 解析总结内容
+                lines = full_content.split('\n')
+                current_section = None
+                current_items = []
+
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # 检测章节标题
+                    if line.startswith('【') and line.endswith('】'):
+                        # 保存上一个章节
+                        if current_section and current_items:
+                            mindmap_lines.append(f"## {current_section}")
+                            for item in current_items:
+                                mindmap_lines.append(f"- {item}")
+                            mindmap_lines.append("")
+
+                        current_section = line[1:-1]  # 去掉【】
+                        current_items = []
+                    # 检测列表项
+                    elif line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')) or line.startswith(('-', '•')):
+                        item = line.lstrip('0123456789.-•• \t')
+                        if item:
+                            current_items.append(item)
+                    # 普通内容
+                    elif current_section:
+                        current_items.append(line)
+
+                # 保存最后一个章节
+                if current_section and current_items:
+                    mindmap_lines.append(f"## {current_section}")
+                    for item in current_items:
+                        mindmap_lines.append(f"- {item}")
+
+                # 添加生成时间
+                mindmap_lines.append(f"\n---\n*生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
+
+                mindmap_text = '\n'.join(mindmap_lines)
+                yield f"event: mindmap\ndata: {json.dumps({'text': mindmap_text}, ensure_ascii=False)}\n\n"
+
+                # ========== 步骤6: 发送配额信息 ==========
+                yield f"event: quota\ndata: {json.dumps({'remaining': 999, 'total': 1000}, ensure_ascii=False)}\n\n"
+
+                # ========== 步骤7: 发送完成事件 ==========
+                yield f"event: done\ndata: {json.dumps({'success': True}, ensure_ascii=False)}\n\n"
+
+            except Exception as e:
+                print(f"[AI] 流式生成错误: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                yield f"event: error\ndata: {json.dumps({'message': f'生成失败: {str(e)}'}, ensure_ascii=False)}\n\n"
+
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+    except Exception as e:
+        print(f"[AI] 总结错误: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'总结失败: {str(e)[:200]}'
         }), 500

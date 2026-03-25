@@ -1,12 +1,12 @@
 <template>
-  <div class="min-h-screen bg-gray-50 font-sans">
-    <!-- 顶部导航栏 - SaveAny风格 -->
-    <header class="bg-white border-b border-gray-100 sticky top-0 z-50">
+  <div class="min-h-screen bg-gradient-to-b from-gray-50 to-white font-sans">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
-          <!-- 左侧：Logo + 副标题 -->
+          <!-- Logo区域 -->
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20">
               <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
               </svg>
@@ -17,17 +17,26 @@
             </div>
           </div>
 
-          <!-- 中间：导航入口 -->
+          <!-- 导航入口 -->
           <nav class="hidden md:flex items-center gap-8">
-            <a href="#features" class="text-sm text-gray-600 hover:text-gray-900 transition-colors">功能特性</a>
-            <a href="#pricing" class="text-sm text-gray-600 hover:text-gray-900 transition-colors">套餐价格</a>
-            <a href="#platforms" class="text-sm text-gray-600 hover:text-gray-900 transition-colors">支持平台</a>
+            <router-link to="/download" class="nav-link-active">视频下载</router-link>
+            <router-link to="/summarize" class="nav-link">AI总结</router-link>
           </nav>
 
-          <!-- 右侧：VIP按钮 -->
+          <!-- VIP入口 -->
           <div class="flex items-center gap-3">
-            <button class="hidden sm:block px-4 py-2 bg-primary-50 text-primary-600 rounded-lg text-sm font-medium hover:bg-primary-100 transition-colors">
-              开通VIP
+            <!-- 免费额度提示 -->
+            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+              <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+              </svg>
+              <span class="text-xs font-medium text-amber-700">今日免费: 5次</span>
+            </div>
+            <button class="btn-gradient-ai flex items-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+              </svg>
+              <span class="hidden sm:inline">开通VIP</span>
             </button>
             <!-- 移动端菜单按钮 -->
             <button class="md:hidden p-2" @click="mobileMenuOpen = !mobileMenuOpen">
@@ -41,220 +50,664 @@
         <!-- 移动端菜单 -->
         <div v-if="mobileMenuOpen" class="md:hidden py-4 border-t border-gray-100">
           <nav class="flex flex-col gap-4">
-            <a href="#features" class="text-sm text-gray-600 hover:text-gray-900">功能特性</a>
-            <a href="#pricing" class="text-sm text-gray-600 hover:text-gray-900">套餐价格</a>
-            <a href="#platforms" class="text-sm text-gray-600 hover:text-gray-900">支持平台</a>
-            <button class="px-4 py-2 bg-primary-50 text-primary-600 rounded-lg text-sm font-medium text-left">
-              开通VIP
-            </button>
+            <router-link to="/download" class="nav-link-active">视频下载</router-link>
+            <router-link to="/summarize" class="nav-link">AI总结</router-link>
+            <button class="btn-gradient-ai w-full">开通VIP</button>
           </nav>
         </div>
       </div>
     </header>
 
     <!-- 主内容区 -->
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
 
-      <!-- 核心输入区 - 大尺寸设计 -->
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-8">
-        <div class="space-y-6">
-          <!-- 输入区域 -->
+      <!-- Hero区域 - 大标题与副标题 -->
+      <div class="text-center mb-12 lg:mb-16 animate-slideUp">
+        <div class="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-200 rounded-full mb-6">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+          </span>
+          <span class="text-sm font-medium text-primary-700">支持100+视频平台</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+          万能视频下载器
+          <span class="gradient-text block mt-2">一键下载任意视频</span>
+        </h1>
+
+        <p class="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+          粘贴链接，立即下载高清视频。支持 B站/YouTube/微博/抖音等平台
+        </p>
+
+        <!-- 核心价值标签 -->
+        <div class="flex flex-wrap justify-center gap-3 mb-8">
+          <span class="badge badge-primary">高速下载</span>
+          <span class="badge badge-purple">AI智能总结</span>
+          <span class="badge badge-gray">多清晰度</span>
+          <span class="badge badge-gray">完全免费</span>
+        </div>
+      </div>
+
+      <!-- 核心输入区 - 强化视觉优先级 -->
+      <div class="max-w-4xl mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.1s">
+        <div class="glass-card p-6 sm:p-8 lg:p-10">
+          <!-- 输入引导文案 -->
+          <div class="flex items-center justify-between mb-4">
+            <label class="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <svg class="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+              </svg>
+              粘贴视频链接开始下载
+            </label>
+            <span class="text-xs text-gray-500">支持HTTPS链接</span>
+          </div>
+
+          <!-- 输入区域 - 大尺寸设计 -->
           <div class="flex flex-col lg:flex-row gap-4">
-            <div class="flex-1">
-              <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-                  </svg>
-                </div>
-                <input
-                  v-model="videoUrl"
-                  type="text"
-                  placeholder="粘贴视频链接，支持B站/YouTube/微博等平台"
-                  class="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors"
-                  @keyup.enter="parseVideo"
-                  :disabled="loading"
-                >
+            <div class="flex-1 relative">
+              <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                </svg>
               </div>
+              <input
+                v-model="videoUrl"
+                type="text"
+                placeholder="粘贴视频链接，如 https://www.bilibili.com/video/..."
+                class="input-field-lg pl-14 pr-6"
+                @keyup.enter="parseVideo"
+                :disabled="loading"
+              >
             </div>
             <button
               @click="parseVideo"
               :disabled="!videoUrl.trim() || loading"
-              class="px-8 py-4 bg-primary-500 text-white rounded-xl text-base font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px]"
+              class="btn-primary text-lg px-10 py-5 min-w-[180px] flex items-center justify-center gap-3"
             >
-              <svg v-if="!loading" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-if="!loading" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
-              <svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <svg v-else class="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>{{ loading ? '解析中...' : '解析视频' }}</span>
+              <span>{{ loading ? '解析中...' : '立即解析' }}</span>
             </button>
           </div>
 
           <!-- 快速尝试标签 -->
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm text-gray-500">快速尝试：</span>
+          <div class="flex flex-wrap items-center gap-2 mt-4">
+            <span class="text-sm text-gray-500 font-medium">快速尝试：</span>
             <button
               v-for="platform in quickPlatforms"
               :key="platform.id"
               @click="fillExample(platform.example)"
-              class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors flex items-center gap-1.5"
+              class="platform-badge"
             >
-              <span>{{ platform.icon }}</span>
+              <span class="text-lg">{{ platform.icon }}</span>
               <span>{{ platform.name }}</span>
             </button>
           </div>
 
           <!-- 错误提示 -->
-          <div v-if="error" class="p-4 bg-red-50 border border-red-200 rounded-xl">
-            <div class="flex items-start gap-2">
+          <div v-if="error" class="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+            <div class="flex items-start gap-3">
               <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
-              <span class="text-red-700 text-sm">{{ error }}</span>
+              <span class="text-red-700 text-sm font-medium">{{ error }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 解析结果区 - SaveAny风格 -->
-      <div v-if="videoData" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <!-- 视频预览卡片 -->
-        <div class="flex flex-col lg:flex-row">
-          <!-- 左侧：视频预览 -->
-          <div class="lg:w-2/5 relative">
-            <div class="relative aspect-video bg-gray-900">
-              <img
-                :src="getThumbnailUrl(videoData.thumbnail)"
-                :alt="videoData.title"
-                class="w-full h-full object-cover"
-              >
-              <!-- 播放按钮 -->
-              <div class="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors cursor-pointer group">
-                <div class="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                  <svg class="w-8 h-8 text-primary-500 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"></path>
-                  </svg>
-                </div>
-              </div>
-              <!-- 时长标签 -->
-              <div class="absolute bottom-3 right-3 bg-black/80 text-white text-sm px-2 py-1 rounded">
-                {{ videoData.duration }}
-              </div>
+      <!-- 使用步骤说明 -->
+      <div class="max-w-5xl mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.2s">
+        <div class="text-center mb-8">
+          <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">简单三步，轻松下载</h2>
+          <p class="text-gray-600">无需安装软件，浏览器内直接完成</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+          <!-- 步骤1 -->
+          <div class="glass-card-hover p-6 text-center">
+            <div class="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+              </svg>
             </div>
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+              <h3 class="text-lg font-bold text-gray-900">粘贴链接</h3>
+            </div>
+            <p class="text-sm text-gray-600">从任意视频平台复制视频链接</p>
           </div>
 
-          <!-- 右侧：视频信息 + 操作区 -->
-          <div class="lg:w-3/5 p-6 lg:p-8">
-            <!-- 视频元信息 -->
-            <div class="mb-6">
-              <h1 class="text-xl lg:text-2xl font-bold text-gray-900 mb-4 line-clamp-2">
+          <!-- 步骤2 -->
+          <div class="glass-card-hover p-6 text-center">
+            <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+              <h3 class="text-lg font-bold text-gray-900">解析视频</h3>
+            </div>
+            <p class="text-sm text-gray-600">点击解析按钮，AI自动分析</p>
+          </div>
+
+          <!-- 步骤3 -->
+          <div class="glass-card-hover p-6 text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+            </div>
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+              <h3 class="text-lg font-bold text-gray-900">下载/总结</h3>
+            </div>
+            <p class="text-sm text-gray-600">选择清晰度下载，查看AI总结</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 解析结果区 - 双栏布局 -->
+      <div v-if="videoData" class="max-w-7xl mx-auto animate-slideUp" style="animation-delay: 0.3s">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+          <!-- 左侧栏：视频信息 (40%宽度) -->
+          <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg border border-gray-200 p-5 sticky top-24 shadow-sm">
+              <!-- 视频封面 -->
+              <div class="relative aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4">
+                <img
+                  :src="getThumbnailUrl(videoData.thumbnail)"
+                  class="w-full h-full object-cover"
+                >
+                <!-- 时长标签 -->
+                <div class="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-lg font-medium">
+                  {{ videoData.duration }}
+                </div>
+              </div>
+
+              <!-- 视频信息 -->
+              <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2 text-sm leading-relaxed">
                 {{ videoData.title }}
-              </h1>
-              <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                <div class="flex items-center gap-1.5">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              </h3>
+              <div class="flex items-center gap-3 text-xs text-gray-500 mb-4">
+                <div class="flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                   </svg>
                   <span>{{ videoData.uploader || '未知UP主' }}</span>
                 </div>
-                <div v-if="videoData.view_count" class="flex items-center gap-1.5">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                <div class="flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
-                  <span>{{ formatViewCount(videoData.view_count) }}播放</span>
+                  <span>{{ formatViewCount(videoData.view_count) }}</span>
                 </div>
               </div>
-            </div>
 
-            <!-- 清晰度选择 -->
-            <div class="mb-6">
-              <div class="text-sm text-gray-600 mb-3">选择清晰度：</div>
-              <div class="flex flex-wrap gap-2">
+              <!-- 清晰度选择 -->
+              <div class="space-y-2 mb-4">
+                <p class="text-xs font-medium text-gray-600 mb-2">选择质量</p>
+                <div class="grid grid-cols-3 gap-2">
+                  <button
+                    v-for="format in displayFormats"
+                    :key="format.format_id"
+                    @click="selectedFormat = format.format_id"
+                    class="quality-card px-3 py-2 rounded-md text-xs font-medium transition-all"
+                    :class="selectedFormat === format.format_id ? 'quality-card-selected' : 'quality-card-default'"
+                  >
+                    {{ format.quality }}
+                  </button>
+                </div>
+                <!-- 音频选项 -->
                 <button
-                  v-for="format in displayFormats"
-                  :key="format.format_id"
-                  @click="selectedFormat = format.format_id"
-                  class="px-4 py-2 border rounded-lg text-sm font-medium transition-colors"
-                  :class="selectedFormat === format.format_id
-                    ? 'bg-primary-500 border-primary-500 text-white'
-                    : 'bg-white border-gray-300 text-gray-700 hover:border-primary-500'"
+                  v-if="videoData.audio_only"
+                  @click="selectedFormat = videoData.audio_only.format_id"
+                  class="quality-card px-3 py-2 rounded-md text-xs font-medium transition-all w-full"
+                  :class="selectedFormat === videoData.audio_only.format_id ? 'quality-card-selected' : 'quality-card-default'"
                 >
-                  <span v-if="format.recommended" class="mr-1">👑</span>
-                  {{ format.quality }}
+                  🎵 音频
                 </button>
               </div>
-              <div class="mt-2 text-xs text-gray-500">
-                <span v-if="selectedFormatData">
-                  {{ selectedFormatData.ext?.toUpperCase() }} · {{ selectedFormatData.size_formatted || '未知大小' }}
-                </span>
-              </div>
-            </div>
 
-            <!-- 操作按钮栏 -->
-            <div class="flex flex-col sm:flex-row gap-3">
-              <!-- 立即下载按钮 -->
+              <!-- 选中的格式信息 -->
+              <div v-if="selectedFormatData" class="mb-4 text-xs text-gray-500">
+                {{ selectedFormatData.ext?.toUpperCase() }} · {{ selectedFormatData.size_formatted || '未知大小' }}
+              </div>
+
+              <!-- 下载按钮 -->
               <button
                 @click="downloadVideo"
                 :disabled="downloading || !selectedFormat"
-                class="flex-1 px-6 py-3.5 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                class="w-full bg-[#1890ff] hover:bg-[#1677d9] text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
               >
-                <svg v-if="!downloading" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="!downloading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
-                <svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>{{ downloading ? `下载中 ${downloadProgress}%` : '立即下载' }}</span>
+                <span>{{ downloading ? `下载中 ${downloadProgress}%` : '下载视频' }}</span>
               </button>
 
-              <!-- AI总结按钮 -->
+              <!-- 下载进度条 -->
+              <div v-if="downloading && downloadProgress > 0" class="mt-4">
+                <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-[#1890ff] transition-all duration-300" :style="{ width: downloadProgress + '%' }"></div>
+                </div>
+                <p class="text-center text-xs text-gray-600 mt-2">{{ downloadProgress }}%</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右侧栏：AI总结 (60%宽度) -->
+          <div class="lg:col-span-3">
+            <!-- Tab切换栏 -->
+            <div class="bg-white rounded-lg border border-gray-200 p-1.5 flex gap-1.5 mb-4">
               <button
-                @click="toggleAIPanel"
-                class="px-6 py-3.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium hover:from-purple-600 hover:to-pink-600 transition-colors flex items-center justify-center gap-2"
+                v-for="tab in aiTabs"
+                :key="tab.key"
+                @click="activeAITab = tab.key"
+                class="flex-1 px-3 py-2 rounded-md font-medium text-xs transition-all duration-200 flex items-center justify-center gap-1.5"
+                :class="activeAITab === tab.key
+                  ? 'bg-[#1890ff] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'"
               >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon"></path>
                 </svg>
-                <span>AI总结</span>
+                <span>{{ tab.label }}</span>
               </button>
             </div>
 
-            <!-- 下载进度 -->
-            <div v-if="downloading && downloadProgress > 0" class="mt-4">
-              <div class="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  class="absolute inset-y-0 left-0 bg-primary-500 rounded-full transition-all duration-300"
-                  :style="{ width: downloadProgress + '%' }"
-                ></div>
+            <!-- Tab内容区 -->
+            <div class="bg-white rounded-lg border border-gray-200 p-5 min-h-[500px] shadow-sm">
+
+              <!-- 视频总结 Tab - SSE逐字打字机效果 -->
+              <div v-if="activeAITab === 'summary'" class="space-y-4">
+                <!-- 初始加载状态 -->
+                <div v-if="aiInitialLoading && !aiSummaryText" class="flex flex-col items-center justify-center py-16">
+                  <div class="relative w-16 h-16 mb-4">
+                    <div class="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-[#1677ff] rounded-full border-t-transparent animate-spin"></div>
+                  </div>
+                  <h3 class="text-sm font-semibold text-gray-900 mb-1">AI正在分析视频...</h3>
+                  <p class="text-xs text-gray-500">提取字幕内容并生成总结</p>
+                </div>
+
+                <!-- AI生成中状态 - 在底部显示 -->
+                <div v-if="aiStreaming && aiSummaryText" class="flex items-center gap-2 py-2 border-t border-gray-100">
+                  <div class="flex gap-1">
+                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                    <span class="w-1.5 h-1.5 bg-[#1677ff] rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+                  </div>
+                  <span class="text-xs text-gray-500">AI正在生成中...</span>
+                </div>
+
+                <!-- 格式化总结内容 -->
+                <div v-if="parsedSummary && parsedSummary.sections.length > 0" class="space-y-6">
+                  <div v-for="(section, index) in parsedSummary.sections" :key="index" class="space-y-3">
+                    <!-- 章节标题 -->
+                    <h3 class="text-base font-bold text-gray-900">{{ section.title }}</h3>
+
+                    <!-- 章节内容 -->
+                    <div v-if="section.content" class="text-sm text-gray-700 leading-relaxed pl-4">
+                      {{ section.content }}
+                    </div>
+
+                    <!-- 列表项 -->
+                    <div v-if="section.listItems && section.listItems.length > 0" class="space-y-2">
+                      <div
+                        v-for="(item, itemIndex) in section.listItems"
+                        :key="itemIndex"
+                        class="flex items-start gap-2 text-sm text-gray-700"
+                      >
+                        <span class="text-[#1677ff] flex-shrink-0 mt-0.5">•</span>
+                        <span>{{ item }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 如果解析失败，显示原始文本 -->
+                <div v-else-if="aiSummaryText" class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {{ aiSummaryText }}
+                </div>
+
+                <!-- 空状态 -->
+                <div v-if="!aiInitialLoading && !aiSummaryText" class="text-center py-12">
+                  <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                  </div>
+                  <h3 class="text-sm font-semibold text-gray-900 mb-1">等待AI分析</h3>
+                  <p class="text-xs text-gray-500">视频解析完成后自动开始</p>
+                </div>
               </div>
-              <p class="text-center text-sm text-gray-600 mt-2">下载进度: {{ downloadProgress }}%</p>
+
+              <!-- 字幕文本 Tab -->
+              <div v-else-if="activeAITab === 'subtitle'" class="space-y-3">
+                <!-- 字幕功能按钮 -->
+                <div v-if="aiSubtitles.length > 0" class="flex items-center justify-between mb-3">
+                  <div class="text-xs text-gray-500">
+                    共 {{ aiSubtitles.length }} 条字幕
+                  </div>
+                  <div class="flex gap-2">
+                    <button
+                      @click="toggleSubtitleExpanded"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+                      :class="subtitleExpanded ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-[#1677ff] text-white hover:bg-[#1455cc]'"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path v-if="!subtitleExpanded" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                      </svg>
+                      {{ subtitleExpanded ? '收起全部' : '展开全部' }}
+                    </button>
+                    <button
+                      @click="downloadSubtitle('srt')"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1677ff] text-white hover:bg-[#1455cc] transition-colors flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                      </svg>
+                      下载SRT
+                    </button>
+                    <button
+                      @click="downloadSubtitle('txt')"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1677ff] text-white hover:bg-[#1455cc] transition-colors flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                      </svg>
+                      下载TXT
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="aiSubtitles.length > 0" class="space-y-3 max-h-[450px] overflow-y-auto">
+                  <div
+                    v-for="(sub, index) in (subtitleExpanded ? aiSubtitles : aiSubtitles.slice(0, 10))"
+                    :key="index"
+                    class="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div class="text-xs text-gray-400 mb-1 font-mono">{{ sub.time }}</div>
+                    <div class="text-sm text-gray-700">{{ sub.text }}</div>
+                  </div>
+                  <!-- 收起时显示提示 -->
+                  <div v-if="!subtitleExpanded && aiSubtitles.length > 10" class="text-center py-3">
+                    <span class="text-xs text-gray-500">还有 {{ aiSubtitles.length - 10 }} 条字幕，点击"展开全部"查看</span>
+                  </div>
+                </div>
+                <div v-else class="text-center py-12">
+                  <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                  </div>
+                  <h3 class="text-sm font-semibold text-gray-900 mb-1">字幕文本</h3>
+                  <p class="text-xs text-gray-500">AI分析完成后自动显示</p>
+                </div>
+              </div>
+
+              <!-- 思维导图 Tab -->
+              <div v-else-if="activeAITab === 'mindmap'" class="space-y-3">
+                <!-- 思维导图功能按钮 -->
+                <div v-if="aiMindmap" class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div class="text-xs text-gray-500">
+                    交互式思维导图
+                  </div>
+                  <div class="flex gap-2">
+                    <button
+                      @click="mindmapViewMode = mindmapViewMode === 'interactive' ? 'markdown' : 'interactive'"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                      </svg>
+                      {{ mindmapViewMode === 'interactive' ? 'Markdown视图' : '交互视图' }}
+                    </button>
+                    <button
+                      @click="toggleMindmapFullscreen"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1677ff] text-white hover:bg-[#1455cc] transition-colors flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+                      </svg>
+                      全屏查看
+                    </button>
+                    <button
+                      @click="downloadMindmap('md')"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1677ff] text-white hover:bg-[#1455cc] transition-colors flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                      </svg>
+                      下载MD
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 思维导图内容 -->
+                <div v-if="aiMindmap" class="relative">
+                  <div
+                    :class="mindmapFullscreen ? 'fixed inset-0 z-50 bg-white p-8 overflow-auto' : 'bg-gray-50 rounded-lg p-4'"
+                  >
+                    <div v-if="mindmapFullscreen" class="flex justify-end mb-4">
+                      <button
+                        @click="toggleMindmapFullscreen"
+                        class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors flex items-center gap-1"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        关闭全屏
+                      </button>
+                    </div>
+
+                    <!-- 交互式思维导图 -->
+                    <svg
+                      v-if="mindmapViewMode === 'interactive'"
+                      ref="mindmapSvg"
+                      class="mindmap-svg w-full"
+                      :style="mindmapFullscreen ? 'height: calc(100vh - 100px)' : 'height: 450px'"
+                    ></svg>
+
+                    <!-- Markdown 文本视图 -->
+                    <pre
+                      v-else
+                      class="mindmap-markdown text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-mono bg-white p-4 rounded-lg overflow-auto"
+                      :style="mindmapFullscreen ? 'max-height: calc(100vh - 100px)' : 'max-height: 450px'"
+                    >{{ aiMindmap }}</pre>
+                  </div>
+                </div>
+                <div v-else class="text-center py-12">
+                  <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"></path>
+                  </svg>
+                  <p class="text-xs">思维导图正在生成中...</p>
+                </div>
+              </div>
+
+              <!-- AI问答 Tab -->
+              <div v-else-if="activeAITab === 'chat'" class="flex flex-col h-full">
+                <div class="flex-1 space-y-3 max-h-[350px] overflow-y-auto mb-3" id="aiChatContainer">
+                  <div v-if="aiChatMessages.length === 0" class="text-center py-10">
+                    <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                      <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                      </svg>
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-900 mb-1">AI问答助手</h3>
+                    <p class="text-xs text-gray-500">AI分析完成后可提问</p>
+                  </div>
+                  <div
+                    v-for="(msg, index) in aiChatMessages"
+                    :key="index"
+                    class="flex gap-2"
+                    :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+                  >
+                    <div
+                      class="max-w-[85%] rounded-xl px-3 py-2 text-xs"
+                      :class="msg.role === 'user' ? 'bg-[#1890ff] text-white' : 'bg-gray-100 text-gray-800'"
+                    >
+                      {{ msg.content }}
+                    </div>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <input
+                    v-model="aiChatQuestion"
+                    type="text"
+                    placeholder="向AI提问关于视频内容的问题..."
+                    class="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1890ff] focus:border-transparent"
+                    @keyup.enter="sendAIChat"
+                    :disabled="aiChatLoading"
+                  >
+                  <button
+                    @click="sendAIChat"
+                    :disabled="!aiChatQuestion.trim() || aiChatLoading"
+                    class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg text-xs transition-all flex items-center justify-center"
+                  >
+                    发送
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- VIP转化引导区 -->
+      <div class="max-w-5xl mx-auto mt-16 lg:mt-20 animate-slideUp" style="animation-delay: 0.4s">
+        <div class="ai-card p-8 lg:p-10">
+          <div class="flex flex-col lg:flex-row items-center gap-8">
+            <div class="flex-1 text-center lg:text-left">
+              <h3 class="text-2xl lg:text-3xl font-bold gradient-text-ai mb-4">
+                解锁全部功能，享受VIP特权
+              </h3>
+              <div class="grid grid-cols-2 gap-4 text-left">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-900">无限下载</div>
+                    <div class="text-sm text-gray-600">不限次数，畅快使用</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-900">AI总结</div>
+                    <div class="text-sm text-gray-600">智能提取视频要点</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-900">超清画质</div>
+                    <div class="text-sm text-gray-600">支持4K/8K下载</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-violet-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-900">隐私保护</div>
+                    <div class="text-sm text-gray-600">下载记录不留痕</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex-shrink-0 text-center">
+              <div class="mb-4">
+                <span class="text-4xl lg:text-5xl font-bold text-gray-900">¥29</span>
+                <span class="text-lg text-gray-600">/月</span>
+              </div>
+              <button class="btn-gradient-ai text-lg px-10 py-4 shadow-xl shadow-purple-500/20">
+                立即开通VIP
+              </button>
+              <p class="text-xs text-gray-500 mt-3">随时取消，无隐藏费用</p>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- AI功能面板 -->
-      <div v-if="showAIPanel && videoData" class="mt-8">
-        <VideoAIPanel
-          :video-url="originalUrl"
-          :video-title="videoData.title"
-          :video-description="videoData.description"
-          :video-thumbnail="videoData.thumbnail"
-          @seek-timestamp="handleSeekTimestamp"
-        />
-      </div>
     </main>
 
     <!-- 页脚 -->
-    <footer class="bg-white border-t border-gray-100 mt-12">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="text-center text-sm text-gray-500">
-          <p>© 2024 FetchVid · 万能视频下载器 · 支持B站/YouTube/微博等平台</p>
+    <footer class="bg-white border-t border-gray-200 mt-16 lg:mt-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <!-- 品牌信息 -->
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="font-bold text-gray-900">FetchVid</div>
+                <div class="text-xs text-gray-500">万能视频下载器</div>
+              </div>
+            </div>
+            <p class="text-sm text-gray-600">支持100+视频平台，一键下载高清视频，AI智能总结视频内容。</p>
+          </div>
+
+          <!-- 快速链接 -->
+          <div>
+            <h4 class="font-semibold text-gray-900 mb-4">快速链接</h4>
+            <ul class="space-y-2">
+              <li><router-link to="/download" class="text-sm text-gray-600 hover:text-primary-600 transition-colors">视频下载</router-link></li>
+              <li><router-link to="/summarize" class="text-sm text-gray-600 hover:text-primary-600 transition-colors">AI总结</router-link></li>
+              <li><a href="#" class="text-sm text-gray-600 hover:text-primary-600 transition-colors">使用教程</a></li>
+              <li><a href="#" class="text-sm text-gray-600 hover:text-primary-600 transition-colors">常见问题</a></li>
+            </ul>
+          </div>
+
+          <!-- 联系方式 -->
+          <div>
+            <h4 class="font-semibold text-gray-900 mb-4">联系我们</h4>
+            <ul class="space-y-2">
+              <li class="text-sm text-gray-600">客服邮箱: support@fetchvid.com</li>
+              <li class="text-sm text-gray-600">工作时间: 9:00-21:00</li>
+              <li class="text-sm text-gray-600">响应时间: <1小时</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="pt-8 border-t border-gray-200">
+          <div class="text-center text-sm text-gray-500">
+            <p>© 2024 FetchVid · 万能视频下载器 · 支持B站/YouTube/微博/抖音等平台</p>
+          </div>
         </div>
       </div>
     </footer>
@@ -262,9 +715,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import VideoAIPanel from '@/components/VideoAIPanel.vue'
+import { Transformer } from 'markmap-lib'
+import { Markmap } from 'markmap-view'
 
 const videoUrl = ref('')
 const loading = ref(false)
@@ -276,7 +730,38 @@ const downloading = ref(false)
 const downloadProgress = ref(0)
 const downloadTaskId = ref(null)
 const mobileMenuOpen = ref(false)
-const showAIPanel = ref(false)
+
+// AI分析相关状态
+const aiProgress = ref(0)
+const aiSubtitles = ref([])
+const aiAnalysisComplete = ref(false)
+const aiInitialLoading = ref(true) // 初始加载状态
+
+// AI Tabs相关状态
+const aiTabs = ref([
+  { key: 'summary', label: '视频总结', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { key: 'subtitle', label: '字幕文本', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { key: 'mindmap', label: '思维导图', icon: 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7' },
+  { key: 'chat', label: 'AI问答', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' }
+])
+const activeAITab = ref('summary')
+const aiStreaming = ref(false)
+const aiSummaryText = ref('')  // 改为纯文本，不再解析为sections
+const aiMindmap = ref(null)
+const aiChatMessages = ref([])
+const aiChatQuestion = ref('')
+const aiChatLoading = ref(false)
+const aiRemainingQuota = ref(999)
+
+// 字幕相关状态
+const subtitleExpanded = ref(false)
+const subtitleFormat = ref('srt') // srt 或 txt
+
+// 思维导图相关状态
+const mindmapFullscreen = ref(false)
+const mindmapViewMode = ref('interactive') // 'interactive' 或 'markdown'
+const mindmapSvg = ref(null)
+const markmapInstance = ref(null)
 
 // 快速尝试平台
 const quickPlatforms = [
@@ -286,7 +771,11 @@ const quickPlatforms = [
   { id: 'weibo', name: '微博', icon: '🌭', example: 'https://weibo.com/tv/show/123456' }
 ]
 
-// 计算属性
+// 计算属性 - 解析后的总结内容
+const parsedSummary = computed(() => {
+  if (!aiSummaryText.value) return null
+  return parseSummaryText(aiSummaryText.value)
+})
 const displayFormats = computed(() => {
   if (!videoData.value?.formats) return []
   return videoData.value.formats.map(f => ({
@@ -317,6 +806,242 @@ const fillExample = (url) => {
   error.value = ''
 }
 
+// 格式化时间（秒转为 HH:MM:SS 或 MM:SS）
+const formatTime = (seconds) => {
+  if (!seconds || seconds < 0) return '00:00'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  if (mins >= 60) {
+    const hours = Math.floor(mins / 60)
+    const remainingMins = mins % 60
+    return `${String(hours).padStart(2, '0')}:${String(remainingMins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+// 解析总结文本为结构化数据
+const parseSummaryText = (text) => {
+  if (!text) return { sections: [] }
+
+  const sections = []
+  const lines = text.split('\n')
+  let currentSection = null
+  let currentContent = []
+  let currentListItems = []
+
+  for (let line of lines) {
+    line = line.trim()
+
+    // 检测标题（【xxx】或 # xxx）
+    if (line.match(/^【(.+)】$/) || line.match(/^#+\s+(.+)$/)) {
+      // 保存上一个section
+      if (currentSection) {
+        sections.push({
+          title: currentSection,
+          content: currentContent.join('\n').trim(),
+          listItems: currentListItems
+        })
+      }
+
+      // 开始新section
+      const titleMatch = line.match(/^【(.+)】$/)
+      const headingMatch = line.match(/^#+\s+(.+)$/)
+      currentSection = titleMatch ? titleMatch[1] : headingMatch[1]
+      currentContent = []
+      currentListItems = []
+    }
+    // 检测列表项（1. 或 - 或 •）
+    else if (line.match(/^\d+\.\s*/) || line.match(/^[-•]\s*/)) {
+      const listItem = line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim()
+      if (listItem) {
+        currentListItems.push(listItem)
+      }
+    }
+    // 普通内容
+    else if (line) {
+      currentContent.push(line)
+    }
+  }
+
+  // 保存最后一个section
+  if (currentSection) {
+    sections.push({
+      title: currentSection,
+      content: currentContent.join('\n').trim(),
+      listItems: currentListItems
+    })
+  }
+
+  return { sections }
+}
+
+// 格式化总结文本（将横线改为圆点）
+const formatSummaryText = (text) => {
+  if (!text) return ''
+  return text
+    .replace(/^[-\u2014\u2013]\s*/gm, '\u2022 ')  // 将横线改为圆点
+    .replace(/^\d+\.\s*/gm, (match) => '\u2022 ')  // 将数字序号改为圆点
+}
+
+// 下载字幕
+const downloadSubtitle = (format = 'srt') => {
+  if (aiSubtitles.value.length === 0) {
+    ElMessage.warning('暂无字幕可下载')
+    return
+  }
+
+  let content = ''
+  const filename = `${videoData.value?.title || 'subtitle'}.${format}`
+
+  if (format === 'srt') {
+    // SRT格式
+    aiSubtitles.value.forEach((sub, index) => {
+      content += `${index + 1}\n`
+      content += `${sub.time} --> ${formatTime(sub.end)}\n`
+      content += `${sub.text}\n\n`
+    })
+  } else {
+    // TXT格式
+    content = aiSubtitles.value.map(sub => `[${sub.time}] ${sub.text}`).join('\n')
+  }
+
+  // 创建下载
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+
+  ElMessage.success(`字幕已下载为 ${format.toUpperCase()} 格式`)
+}
+
+// 切换字幕展开/收起
+const toggleSubtitleExpanded = () => {
+  subtitleExpanded.value = !subtitleExpanded.value
+}
+
+// 下载思维导图
+const downloadMindmap = (format = 'md') => {
+  if (!aiMindmap.value) {
+    ElMessage.warning('暂无思维导图可下载')
+    return
+  }
+
+  const filename = `${videoData.value?.title || 'mindmap'}.${format}`
+  const blob = new Blob([aiMindmap.value], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+
+  ElMessage.success(`思维导图已下载为 ${format.toUpperCase()} 格式`)
+}
+
+// 切换思维导图全屏
+const toggleMindmapFullscreen = () => {
+  mindmapFullscreen.value = !mindmapFullscreen.value
+  // 全屏切换后重新渲染思维导图
+  if (mindmapFullscreen.value && mindmapViewMode.value === 'interactive') {
+    nextTick(() => renderMindmap())
+  }
+}
+
+// ==============================================
+// 【交互式思维导图】使用 markmap 渲染
+// ==============================================
+const renderMindmap = async () => {
+  if (!mindmapSvg.value || !aiMindmap.value) return
+
+  try {
+    console.log('🚀 [VideoDownload] 开始渲染交互式思维导图')
+    console.log('📝 [VideoDownload] Markdown 长度:', aiMindmap.value.length)
+
+    const transformer = new Transformer()
+    const { root } = transformer.transform(aiMindmap.value)
+
+    console.log('✅ [VideoDownload] Markdown 转换成功')
+
+    // 清空旧内容
+    if (markmapInstance.value) {
+      try {
+        markmapInstance.value.destroy()
+      } catch (e) {
+        console.error('清理旧实例失败:', e)
+      }
+    }
+
+    // 创建新的 Markmap 实例
+    markmapInstance.value = Markmap.create(mindmapSvg.value, {
+      autoFit: true,
+      fitRatio: 0.95
+    })
+
+    markmapInstance.value.setData(root)
+
+    // 延迟适配视图
+    setTimeout(() => {
+      markmapInstance.value?.fit()
+    }, 100)
+
+    console.log('🎉 [VideoDownload] 交互式思维导图渲染完成')
+
+  } catch (error) {
+    console.error('❌ [VideoDownload] 思维导图渲染失败:', error)
+    // 失败时自动切换到 Markdown 视图
+    mindmapViewMode.value = 'markdown'
+  }
+}
+
+// 监听思维导图数据变化
+watch(aiMindmap, (newVal) => {
+  console.log('🔍 [VideoDownload] aiMindmap 变化')
+  console.log('📝 [VideoDownload] 新值长度:', newVal?.length || 0)
+
+  if (newVal && mindmapViewMode.value === 'interactive') {
+    nextTick(() => {
+      renderMindmap()
+    })
+  }
+})
+
+// 监听视图模式切换
+watch(mindmapViewMode, (newMode) => {
+  console.log('🔄 [VideoDownload] 思维导图视图模式切换:', newMode)
+
+  if (newMode === 'interactive' && aiMindmap.value) {
+    nextTick(() => {
+      renderMindmap()
+    })
+  }
+})
+
+// 监听 Tab 切换
+watch(activeAITab, (newTab) => {
+  console.log('🔄 [VideoDownload] AI Tab 切换:', newTab)
+
+  if (newTab === 'mindmap' && aiMindmap.value && mindmapViewMode.value === 'interactive') {
+    nextTick(() => {
+      renderMindmap()
+    })
+  }
+})
+
+// 组件卸载时清理
+onUnmounted(() => {
+  if (markmapInstance.value) {
+    try {
+      markmapInstance.value.destroy()
+    } catch (e) {
+      console.error('清理思维导图实例失败:', e)
+    }
+  }
+})
+
+// 解析视频 - 同时触发AI分析
 const parseVideo = async () => {
   const url = videoUrl.value.trim()
   if (!url) {
@@ -327,7 +1052,14 @@ const parseVideo = async () => {
   loading.value = true
   error.value = ''
   videoData.value = null
-  showAIPanel.value = false
+
+  // 重置AI状态
+  aiProgress.value = 0
+  aiSubtitles.value = []
+  aiAnalysisComplete.value = false
+  aiStreaming.value = false
+  aiSummaryText.value = ''
+  aiMindmap.value = null
 
   try {
     const response = await fetch('/api/parse', {
@@ -341,12 +1073,17 @@ const parseVideo = async () => {
     if (result.success) {
       videoData.value = result.data
       originalUrl.value = url
+
+      // 动态获取所有清晰度格式，包括音频
       if (result.data.formats && result.data.formats.length > 0) {
-        // 默认选中1080p或第一个
         const format1080p = result.data.formats.find(f => f.quality === '1080p')
         selectedFormat.value = format1080p?.format_id || result.data.formats[0].format_id
       }
+
       ElMessage.success('解析成功！')
+
+      // 解析成功后自动开始AI分析
+      startAIAnalysis()
     } else {
       error.value = result.message
       ElMessage.error(result.message)
@@ -356,6 +1093,211 @@ const parseVideo = async () => {
     ElMessage.error('网络错误')
   } finally {
     loading.value = false
+  }
+}
+
+// 开始AI分析 - SSE逐字流式加载
+const startAIAnalysis = async () => {
+  if (!originalUrl.value) return
+
+  aiInitialLoading.value = true
+  aiStreaming.value = false
+  aiSummaryText.value = ''
+  aiMindmap.value = null
+  aiSubtitles.value = []
+  aiChatMessages.value = []
+  activeAITab.value = 'summary'
+
+  try {
+    const response = await fetch('/api/ai/summarize/char-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: originalUrl.value,
+        title: videoData.value?.title || '',
+        description: videoData.value?.description || ''
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('请求失败')
+    }
+
+    // 读取SSE流
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let currentEventType = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        // 解析SSE事件: event: xxx\ndata: xxx\n\n
+        if (line.startsWith('event: ')) {
+          currentEventType = line.slice(7).trim()
+          continue
+        }
+
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+
+            // 使用从event:行捕获的事件类型
+            if (currentEventType === 'subtitle') {
+              // 字幕事件 - 兼容多种格式
+              // 新格式: {segments: [{start, end, text}], subtitles: [{time, text, start, end}]}
+              // 旧格式: {segments: [{start, end, text}]}
+              // 兼容格式: {text: "完整字幕文本"}
+
+              console.log('🎬 [VideoDownload] 收到字幕事件')
+              console.log('📦 [VideoDownload] data:', data)
+
+              // 优先使用 subtitles (已格式化的)
+              let subtitlesData = data.subtitles || data.segments || []
+
+              console.log('📊 [VideoDownload] subtitlesData 长度:', subtitlesData.length)
+              console.log('📝 [VideoDownload] 第一条字幕:', subtitlesData[0])
+
+              // 如果有 text 字段但没有 subtitles，解析 text
+              if (!subtitlesData.length && data.text) {
+                const text = data.text || ''
+                console.log('📝 [VideoDownload] 使用 text 字段，长度:', text.length)
+                subtitlesData = text.split('\n').map((line, idx) => ({
+                  time: `00:${String(Math.floor(idx * 3 / 60)).padStart(2, '0')}:${String((idx * 3) % 60).padStart(2, '0')}`,
+                  text: line.trim()
+                }))
+              }
+
+              // 确保每条字幕都有 time 和 text 字段
+              if (subtitlesData.length > 0) {
+                const firstSub = subtitlesData[0]
+                console.log('🔍 [VideoDownload] 第一条字幕字段:', Object.keys(firstSub))
+                console.log('📝 [VideoDownload] 第一条字幕内容:', firstSub)
+
+                // 如果没有 time 字段但有 start 字段，生成 time
+                if (!firstSub.time && firstSub.start !== undefined) {
+                  console.log('🔧 [VideoDownload] 字幕缺少 time 字段，从 start 生成')
+                  subtitlesData = subtitlesData.map(sub => {
+                    const start = sub.start || 0
+                    const minutes = Math.floor(start / 60)
+                    const seconds = Math.floor(start % 60)
+                    return {
+                      ...sub,
+                      time: `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+                    }
+                  })
+                }
+              }
+
+              console.log('✅ [VideoDownload] 处理后的字幕数据:', subtitlesData.slice(0, 3))
+
+              // 检查是否需要分割文本（如果只有1条记录但文本很长）
+              if (subtitlesData.length === 1 && data.text && data.text.length > 200) {
+                console.log('🔧 [VideoDownload] 检测到单条长字幕，需要分割处理')
+
+                // 按句子或段落分割长文本
+                const longText = data.text
+                const sentences = longText.split(/[。！？!?；\n]/).filter(s => s.trim().length > 5)
+
+                console.log('📊 [VideoDownload] 分割成', sentences.length, '个句子')
+
+                // 生成分段的字幕数据
+                subtitlesData = sentences.map((sentence, idx) => {
+                  const start = idx * 5  // 每句假设5秒
+                  const minutes = Math.floor(start / 60)
+                  const seconds = Math.floor(start % 60)
+                  const time = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+
+                  return {
+                    time: time,
+                    start_time: time,
+                    end_time: `${String(minutes).padStart(2, '0')}:${String((start + 5) % 60).padStart(2, '0')}`,
+                    start: start,
+                    end: start + 5,
+                    text: sentence.trim()
+                  }
+                })
+
+                console.log('✅ [VideoDownload] 分割后的字幕数据:', subtitlesData.slice(0, 3))
+              }
+
+              // 确保 subtitlesData 包含必要的字段
+              aiSubtitles.value = subtitlesData.map(seg => {
+                // 如果已经有 time 字段，直接使用
+                if (seg.time) {
+                  return {
+                    time: seg.time,
+                    start: seg.start || 0,
+                    end: seg.end || 0,
+                    text: seg.text || ''
+                  }
+                }
+                // 如果没有 time 字段，从 start 生成
+                const start = seg.start || seg.start_time || 0
+                const end = seg.end || seg.end_time || (start + 3)
+                return {
+                  time: formatTime(start),
+                  start: start,
+                  end: end,
+                  text: seg.text || ''
+                }
+              }).filter(s => s.text)
+            }
+            else if (currentEventType === 'summary' && data.token) {
+              // 隐藏初始加载，开始流式输出
+              if (aiInitialLoading.value) {
+                aiInitialLoading.value = false
+                aiStreaming.value = true
+              }
+
+              // 逐token打字机效果 - 直接追加纯文本
+              aiSummaryText.value += data.token
+
+              // 更新进度
+              if (aiProgress.value < 90) {
+                aiProgress.value = Math.min(aiProgress.value + 1, 90)
+              }
+            }
+            else if (currentEventType === 'mindmap') {
+              // 思维导图事件 - 纯文本格式
+              const mindmapText = data.text || data.content || ''
+              if (mindmapText) {
+                aiMindmap.value = mindmapText
+              }
+            }
+            else if (currentEventType === 'quota') {
+              // 配额信息
+              aiRemainingQuota.value = data.remaining
+            }
+            else if (currentEventType === 'done') {
+              // 完成
+              aiProgress.value = 100
+              aiStreaming.value = false
+              aiInitialLoading.value = false
+              aiAnalysisComplete.value = true
+              ElMessage.success('AI分析完成！')
+            }
+            else if (currentEventType === 'error') {
+              throw new Error(data.message || '生成失败')
+            }
+          } catch (e) {
+            console.error('解析SSE数据失败:', e, line)
+          }
+        }
+      }
+    }
+
+  } catch (err) {
+    console.error('AI分析失败:', err)
+    aiStreaming.value = false
+    aiInitialLoading.value = false
+    ElMessage.error(err.message || 'AI分析失败')
   }
 }
 
@@ -424,14 +1366,93 @@ const downloadVideo = async () => {
   }
 }
 
-const handleSeekTimestamp = ({ time }) => {
-  ElMessage.info(`跳转到时间: ${time}`)
-  // TODO: 集成视频播放器跳转功能
-}
+// AI问答功能 - 使用流式接口
+const sendAIChat = async () => {
+  if (!aiChatQuestion.value.trim() || aiChatLoading.value) return
 
-const toggleAIPanel = () => {
-  showAIPanel.value = !showAIPanel.value
-  // 不再自动加载，用户切换Tab时按需加载
+  const question = aiChatQuestion.value.trim()
+  aiChatMessages.value.push({ role: 'user', content: question })
+  aiChatQuestion.value = ''
+  aiChatLoading.value = true
+
+  // 添加一个临时的助手消息用于流式输出
+  const assistantMessageIndex = aiChatMessages.value.length
+  aiChatMessages.value.push({ role: 'assistant', content: '' })
+
+  try {
+    const response = await fetch('/api/ai/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: originalUrl.value,
+        question,
+        video_info: {
+          title: videoData.value?.title || '',
+          description: videoData.value?.description || ''
+        },
+        chat_history: aiChatMessages.value.slice(0, -2).map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('请求失败')
+    }
+
+    // 读取SSE流
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let currentEventType = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEventType = line.slice(7).trim()
+          continue
+        }
+
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+
+            if (currentEventType === 'content' && data.content) {
+              // 流式追加内容
+              aiChatMessages.value[assistantMessageIndex].content += data.content
+            }
+            else if (currentEventType === 'complete') {
+              // 完成
+              aiChatLoading.value = false
+            }
+            else if (currentEventType === 'error') {
+              throw new Error(data.message || 'AI回答失败')
+            }
+          } catch (e) {
+            console.error('解析SSE数据失败:', e, line)
+          }
+        }
+      }
+    }
+
+  } catch (err) {
+    console.error('AI问答失败:', err)
+    ElMessage.error(err.message || 'AI回答失败')
+    // 秠除失败的回答
+    if (aiChatMessages.value[assistantMessageIndex].content === '') {
+      aiChatMessages.value.splice(assistantMessageIndex, 1)
+    }
+  } finally {
+    aiChatLoading.value = false
+  }
 }
 </script>
 
@@ -441,5 +1462,122 @@ const toggleAIPanel = () => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.btn-gradient-ai {
+  @apply bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium px-6 py-3 rounded-xl hover:from-purple-600 hover:to-pink-600 active:from-purple-700 active:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background-color: #8b5cf6;
+  animation: blink 1s infinite;
+  margin-right: 2px;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* 质量卡片样式 */
+.quality-card {
+  border: 1px solid #e5e7eb;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.quality-card-default {
+  @apply quality-card;
+  color: #4b5563;
+}
+
+.quality-card-default:hover {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.quality-card-selected {
+  @apply quality-card;
+  background-color: #eff6ff;
+  border-color: #1890ff;
+  color: #1890ff;
+  box-shadow: 0 0 0 1px #1890ff;
+}
+
+.quality-card-selected:hover {
+  background-color: #dbeafe;
+}
+
+/* 格式化总结样式 */
+.formatted-summary {
+  line-height: 1.8;
+}
+
+.formatted-summary ::v-deep([class*="【"]) {
+  font-weight: bold;
+  color: #111827;
+  font-size: 1rem;
+  display: block;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* 思维导图样式 */
+.mindmap-content {
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+}
+
+.mindmap-content h1 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #111827;
+  margin-bottom: 1rem;
+}
+
+.mindmap-content h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.mindmap-content ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.mindmap-content li {
+  margin: 0.25rem 0;
+}
+
+.mindmap-content p {
+  margin: 0.5rem 0;
+}
+
+/* 交互式思维导图样式 */
+.mindmap-canvas {
+  position: relative;
+  width: 100%;
+  display: block;
+}
+
+.mindmap-markdown {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+  background: #f8f9fa;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

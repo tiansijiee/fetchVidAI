@@ -1,31 +1,31 @@
 <template>
   <div class="subtitle-panel">
-    <!-- 初始状态 -->
+    <!-- 初始状态 - 无字幕时显示 -->
     <div v-if="subtitles.length === 0 && !isLoading" class="text-center py-12">
-      <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-20 h-20 bg-gradient-to-br from-primary-100 to-cyan-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+        <svg class="w-10 h-10 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
         </svg>
       </div>
-      <h3 class="text-xl font-bold text-gray-900 mb-2">视频字幕</h3>
+      <h3 class="text-xl font-bold text-gray-900 mb-3">视频字幕</h3>
       <p class="text-gray-600 mb-6 max-w-md mx-auto">
-        查看完整视频字幕，支持时间跳转和关键词搜索
+        正在加载视频字幕，请稍候...
       </p>
-      <button
-        @click="$emit('load-subtitles')"
-        class="px-6 py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-        </svg>
-        加载字幕
-      </button>
     </div>
 
     <!-- 加载状态 -->
     <div v-if="isLoading" class="text-center py-12">
-      <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p class="text-gray-600">正在加载字幕...</p>
+      <div class="w-20 h-20 relative mx-auto mb-6">
+        <div class="absolute inset-0 border-4 border-primary-200 rounded-full"></div>
+        <div class="absolute inset-0 border-4 border-primary-500 rounded-full border-t-transparent animate-spin"></div>
+        <div class="absolute inset-3 bg-gradient-to-br from-primary-500 to-cyan-500 rounded-full flex items-center justify-center">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+        </div>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">正在提取字幕...</h3>
+      <p class="text-sm text-gray-600">这可能需要几秒钟</p>
     </div>
 
     <!-- 字幕内容 -->
@@ -41,14 +41,14 @@
             v-model="searchQuery"
             type="text"
             placeholder="搜索字幕内容..."
-            class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            class="input-field pl-10 py-2.5"
           >
         </div>
 
         <!-- 统计和操作 -->
         <div class="flex items-center gap-3">
           <span class="text-sm text-gray-600">
-            共 <span class="font-semibold text-blue-600">{{ filteredSubtitles.length }}</span> 条字幕
+            共 <span class="font-semibold text-primary-600">{{ filteredSubtitles.length }}</span> 条字幕
           </span>
           <button
             @click="toggleExpandAll"
@@ -64,14 +64,14 @@
         <div
           v-for="(subtitle, index) in filteredSubtitles"
           :key="index"
-          class="subtitle-item p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 transition-colors"
-          :class="{ 'bg-blue-50 border-blue-300': isHighlighted(subtitle) }"
+          class="subtitle-item p-4 bg-white border border-gray-200 rounded-xl hover:border-primary-300 transition-colors cursor-pointer"
+          :class="{ 'bg-primary-50 border-primary-300': isHighlighted(subtitle) }"
         >
           <div class="flex items-start gap-3">
             <!-- 时间戳 -->
             <button
               @click="$emit('seek-timestamp', { time: subtitle.time, seconds: parseTime(subtitle.time) })"
-              class="flex-shrink-0 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-mono hover:bg-blue-200 transition-colors"
+              class="flex-shrink-0 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-lg text-sm font-mono hover:bg-primary-200 transition-colors font-medium"
             >
               {{ subtitle.time }}
             </button>
@@ -79,7 +79,7 @@
             <!-- 内容 -->
             <div class="flex-1 min-w-0">
               <p
-                class="text-gray-700 cursor-pointer"
+                class="text-gray-700"
                 :class="{
                   'line-clamp-2': !expandedIndexes.has(index),
                   'line-clamp-none': expandedIndexes.has(index)
@@ -114,16 +114,16 @@
         <p class="text-gray-500">未找到匹配的字幕</p>
         <button
           @click="searchQuery = ''"
-          class="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+          class="mt-4 text-primary-600 hover:text-primary-700 font-medium"
         >
           清除搜索
         </button>
       </div>
 
       <!-- 操作提示 -->
-      <div class="mt-6 p-4 bg-blue-50 rounded-xl">
+      <div class="mt-6 p-4 bg-primary-50 rounded-xl">
         <h4 class="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-          <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
           操作提示
@@ -148,7 +148,7 @@ const props = defineProps({
   subtitles: Array
 })
 
-const emit = defineEmits(['load-subtitles', 'seek-timestamp'])
+const emit = defineEmits(['seek-timestamp'])
 
 // 状态
 const searchQuery = ref('')
@@ -200,17 +200,29 @@ const highlightText = (text) => {
   if (!searchQuery.value.trim()) return text
 
   const query = searchQuery.value
-  const regex = new RegExp(`(${query})`, 'gi')
-  return text.replace(regex, '<mark class="bg-yellow-200 px-0.5 rounded">$1</mark>')
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+  return text.replace(regex, '<mark class="bg-amber-200 px-0.5 rounded">$1</mark>')
 }
 
 const parseTime = (timeStr) => {
-  const match = timeStr.match(/(\d{1,2}):(\d{2})/)
-  if (match) {
-    const [, minutes, seconds] = match
-    return parseInt(minutes) * 60 + parseInt(seconds)
+  if (!timeStr) return 0
+
+  // 处理 HH:MM:SS 或 MM:SS 格式
+  const parts = timeStr.split(':').map(p => parseInt(p, 10))
+
+  if (parts.length === 3) {
+    // HH:MM:SS
+    const [hours, minutes, seconds] = parts
+    return hours * 3600 + minutes * 60 + seconds
+  } else if (parts.length === 2) {
+    // MM:SS
+    const [minutes, seconds] = parts
+    return minutes * 60 + seconds
   }
-  return 0
+
+  // 如果是纯数字，直接返回
+  const num = parseInt(timeStr, 10)
+  return isNaN(num) ? 0 : num
 }
 </script>
 

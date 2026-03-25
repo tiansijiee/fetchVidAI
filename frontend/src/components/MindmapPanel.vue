@@ -1,8 +1,8 @@
 <template>
   <div class="mindmap-panel">
     <!-- 初始状态 -->
-    <div v-if="!summaryData && !isLoading" class="text-center py-12">
-      <div class="w-24 h-24 bg-gradient-to-r from-green-100 to-teal-100 rounded-full flex items-center justify-center mx-auto mb-6">
+    <div v-if="!mindmapContent && !isLoading" class="text-center py-12">
+      <div class="w-24 h-24 bg-gradient-to-br from-green-100 to-teal-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
         <svg class="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path>
         </svg>
@@ -11,17 +11,26 @@
       <p class="text-gray-600 mb-8 max-w-md mx-auto">
         将视频总结转换为可视化思维导图，帮助快速理解内容结构
       </p>
-      <p class="text-sm text-gray-500 mb-4">请先生成视频总结</p>
+      <p class="text-sm text-gray-500">请先生成视频总结</p>
     </div>
 
     <!-- 加载状态 -->
     <div v-if="isLoading" class="text-center py-12">
-      <div class="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p class="text-gray-600">正在生成思维导图...</p>
+      <div class="w-20 h-20 relative mx-auto mb-6">
+        <div class="absolute inset-0 border-4 border-green-200 rounded-full"></div>
+        <div class="absolute inset-0 border-4 border-green-500 rounded-full border-t-transparent animate-spin"></div>
+        <div class="absolute inset-3 bg-gradient-to-br from-green-500 to-teal-500 rounded-full flex items-center justify-center">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path>
+          </svg>
+        </div>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">正在生成思维导图...</h3>
+      <p class="text-sm text-gray-600">请稍候</p>
     </div>
 
     <!-- 思维导图内容 -->
-    <div v-if="summaryData && !isLoading">
+    <div v-if="mindmapContent && !isLoading">
       <!-- 工具栏 -->
       <div class="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-gray-50 rounded-xl">
         <div class="flex items-center gap-2">
@@ -97,7 +106,6 @@
         @mouseleave="viewMode === 'interactive' ? stopDrag : null"
         @wheel="viewMode === 'interactive' ? onWheel : null"
       >
-        <!-- SVG交互式思维导图 -->
         <svg
           v-if="viewMode === 'interactive'"
           ref="svgMindmap"
@@ -105,15 +113,13 @@
           :style="{ backgroundColor: '#ffffff' }"
         ></svg>
 
-        <!-- Markdown文本视图 -->
         <pre
           v-else
           class="mindmap-markdown p-6 overflow-auto"
           :style="{ height: '100%', maxWidth: '100%' }"
-        >{{ mindmapMarkdown }}</pre>
+        >{{ mindmapContent }}</pre>
       </div>
 
-      <!-- 操作提示 -->
       <div class="mt-6 p-4 bg-teal-50 rounded-xl">
         <h4 class="font-semibold text-gray-900 mb-2 flex items-center gap-2">
           <svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -127,242 +133,278 @@
           <li>• 切换视图模式查看不同展示方式</li>
           <li>• 导出为Markdown格式可用于其他工具</li>
         </ul>
+
+        <!-- 调试按钮 -->
+        <div class="mt-4 pt-4 border-t border-teal-200">
+          <button
+            @click="testWithMockData"
+            class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+          >
+            🧪 测试模拟数据
+          </button>
+          <span class="ml-3 text-xs text-orange-600">点击测试思维导图是否正常工作</span>
+        </div>
+
+        <!-- 调试信息显示 -->
+        <div class="mt-4 pt-4 border-t border-teal-200">
+          <h5 class="font-medium text-gray-900 mb-2">🔍 调试信息</h5>
+          <div class="text-xs text-gray-600 space-y-1">
+            <p>• Markdown长度: {{ mindmapContent?.length || 0 }} 字符</p>
+            <p>• 视图模式: {{ viewMode }}</p>
+            <p>• Markmap实例: {{ markmapInstance ? '已创建' : '未创建' }}</p>
+            <p>• SVG元素: {{ svgMindmap ? '已挂载' : '未挂载' }}</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Transformer } from 'markmap-lib'
 import { Markmap } from 'markmap-view'
 
 const props = defineProps({
-  videoUrl: String,
-  videoTitle: String,
   isLoading: Boolean,
-  summaryData: Object
+  markdown: String
 })
 
-const emit = defineEmits(['generate-mindmap', 'seek-timestamp'])
+const emit = defineEmits(['generate-mindmap'])
 
-// Refs
-const canvasContainer = ref(null)
 const svgMindmap = ref(null)
-
-// 状态
 const scale = ref(1)
-const translateX = ref(0)
-const translateY = ref(0)
 const isDragging = ref(false)
-const dragStartX = ref(0)
-const dragStartY = ref(0)
-const viewMode = ref('interactive') // 'interactive' 或 'markdown'
+const viewMode = ref('interactive')
 const markmapInstance = ref(null)
 
-// 计算属性
-const mindmapMarkdown = computed(() => {
-  if (!props.summaryData) return ''
+// ==============================================
+// 【调试模式】模拟数据用于测试
+// ==============================================
+const MOCK_MINDMAP_DATA = `# AI视频分析技术
 
-  let md = `# ${props.summaryData.overview?.substring(0, 50) || '视频主题'}...\n\n`
+## 视频概述
+- 本视频介绍了人工智能在视频分析领域的应用
+- 涵盖了深度学习模型和计算机视觉技术
+- 探讨了实际应用场景和未来发展趋势
 
-  // 从outline生成主要分支
-  if (props.summaryData.outline?.length) {
-    props.summaryData.outline.forEach((outline, index) => {
-      md += `## ${index + 1}. ${outline.title}\n`
-      // 提取关键点作为子节点
-      const content = outline.content || ''
-      const sentences = content.split('。').filter(s => s.trim().length > 5)
-      sentences.slice(0, 3).forEach(sentence => {
-        md += `- ${sentence.trim()}。\n`
-      })
-      md += '\n'
-    })
-  }
+## 内容大纲
 
-  // 从key_points生成额外分支
-  if (props.summaryData.key_points?.length) {
-    md += `## 核心要点\n`
-    props.summaryData.key_points.forEach(point => {
-      md += `- ${point.point}\n`
-    })
-    md += '\n'
-  }
+### 1. 视频分析基础
+- 视频帧提取与预处理
+- 特征提取技术
+- 时序信息建模
 
-  // 从conclusion生成总结分支
-  if (props.summaryData.conclusion?.takeaways?.length) {
-    md += `## 主要收获\n`
-    props.summaryData.conclusion.takeaways.forEach(takeaway => {
-      md += `- ${takeaway}\n`
-    })
-  }
+### 2. 深度学习模型
+- CNN卷积神经网络
+- RNN循环神经网络
+- Transformer注意力机制
 
-  return md
+### 3. 应用场景
+- 智能监控系统
+- 视频内容推荐
+- 动作识别与分类
+
+## 核心要点
+- 深度学习显著提升了视频分析准确率
+- 实时处理需要优化模型架构
+- 多模态融合是未来发展方向
+
+## 结论
+AI视频分析技术正在快速发展，将在更多领域发挥重要作用`
+
+const mindmapContent = computed(() => {
+  const content = props.markdown || ''
+  console.log('🔍 [MindmapPanel] mindmapContent computed called')
+  console.log('📥 [MindmapPanel] props.markdown:', props.markdown)
+  console.log('📤 [MindmapPanel] 返回内容长度:', content.length)
+  console.log('📝 [MindmapPanel] 返回内容预览:', content.substring(0, 200))
+  return content
 })
 
-// 监听summaryData变化，重新渲染思维导图
-watch(() => props.summaryData, async (newData) => {
-  if (newData && viewMode.value === 'interactive') {
+// ==============================================
+// 【调试模式】使用模拟数据测试
+// ==============================================
+const useMockData = ref(false)
+
+watch(() => props.markdown, (newVal) => {
+  console.log('🔍 [MindmapPanel] props.markdown changed')
+  console.log('📥 [MindmapPanel] 新值:', newVal ? newVal.substring(0, 100) + '...' : '空')
+  console.log('📏 [MindmapPanel] 长度:', newVal?.length || 0)
+})
+
+const clearSVG = () => {
+  if (svgMindmap.value) svgMindmap.value.innerHTML = ''
+  if (markmapInstance.value) {
+    try { markmapInstance.value.destroy() } catch {}
+    markmapInstance.value = null
+  }
+}
+
+watch(mindmapContent, async (newVal) => {
+  console.log('🔍 [MindmapPanel] mindmapContent watch triggered')
+  console.log('📥 [MindmapPanel] newVal:', newVal ? '有内容' : '空')
+  console.log('📏 [MindmapPanel] newVal.length:', newVal?.length || 0)
+  console.log('🎯 [MindmapPanel] viewMode:', viewMode.value)
+
+  if (newVal && viewMode.value === 'interactive') {
+    console.log('✅ [MindmapPanel] 准备渲染思维导图')
+    clearSVG()
     await nextTick()
     renderMindmap()
+  } else {
+    console.log('⏸️ [MindmapPanel] 跳过渲染，原因:', !newVal ? '内容为空' : '不是交互模式')
   }
 }, { immediate: true })
 
-// 渲染交互式思维导图
+// ==============================================
+// 【调试模式】渲染思维导图（带详细日志）
+// ==============================================
 const renderMindmap = async () => {
-  if (!svgMindmap.value || !mindmapMarkdown.value) return
+  console.log('🚀 [MindmapPanel] renderMindmap 开始执行')
+  console.log('📦 [MindmapPanel] svgMindmap.value:', svgMindmap.value)
+  console.log('📝 [MindmapPanel] mindmapContent.value 长度:', mindmapContent.value?.length || 0)
+
+  if (!svgMindmap.value) {
+    console.error('❌ [MindmapPanel] svgMindmap 为空，无法渲染')
+    return
+  }
+
+  if (!mindmapContent.value) {
+    console.error('❌ [MindmapPanel] mindmapContent 为空，无法渲染')
+    return
+  }
 
   try {
-    // 创建Transformer
+    console.log('📊 [MindmapPanel] 开始转换 Markdown')
     const transformer = new Transformer()
 
-    // 转换markdown为思维导图数据
-    const { root, features } = transformer.transform(mindmapMarkdown.value)
+    console.log('🔧 [MindmapPanel] 调用 transformer.transform()')
+    console.log('📄 [MindmapPanel] 输入的 Markdown:', mindmapContent.value)
 
-    // 如果已有实例，先销毁
-    if (markmapInstance.value) {
-      markmapInstance.value = null
+    const { root } = transformer.transform(mindmapContent.value)
+
+    console.log('✅ [MindmapPanel] transform 成功')
+    console.log('🌳 [MindmapPanel] 生成的根节点:', root)
+    console.log('🌳 [MindmapPanel] 根节点类型:', root?.type)
+    console.log('🌳 [MindmapPanel] 根节点内容:', root?.content)
+
+    if (!root) {
+      console.error('❌ [MindmapPanel] transformer 返回的 root 为空')
+      return
     }
 
-    // 创建markmap实例
+    console.log('🎨 [MindmapPanel] 创建 Markmap 实例')
     markmapInstance.value = Markmap.create(svgMindmap.value, {
       autoFit: true,
-      fitRatio: 0.95,
-      duration: 500
+      fitRatio: 0.95
     })
 
-    // 设置数据
+    console.log('💾 [MindmapPanel] 设置数据到 Markmap')
     markmapInstance.value.setData(root)
-    markmapInstance.value.fit()
+
+    console.log('📐 [MindmapPanel] 调用 fit() 适配视图')
+    setTimeout(() => {
+      console.log('✅ [MindmapPanel] fit() 执行完成')
+      markmapInstance.value?.fit()
+    }, 100)
+
+    console.log('🎉 [MindmapPanel] 渲染完成')
 
   } catch (error) {
-    console.error('思维导图渲染失败:', error)
-    // 降级到markdown视图
+    console.error('❌ [MindmapPanel] 渲染失败:', error)
+    console.error('❌ [MindmapPanel] 错误堆栈:', error.stack)
+    // 即使出错，也强制显示
     viewMode.value = 'markdown'
   }
 }
 
-// 方法
-const zoomIn = () => {
-  if (viewMode.value === 'interactive' && markmapInstance.value) {
-    markmapInstance.value.fit()
-  } else {
-    scale.value = Math.min(scale.value * 1.2, 3)
-  }
+// ==============================================
+// 【调试模式】使用模拟数据测试
+// ==============================================
+const testWithMockData = () => {
+  console.log('🧪 [MindmapPanel] 使用模拟数据测试')
+  console.log('📝 [MindmapPanel] 模拟数据:', MOCK_MINDMAP_DATA)
+
+  // 直接设置 props.markdown 为模拟数据
+  // 注意：这里我们修改的是计算属性返回值，所以需要通过其他方式
+  // 暂时切换到 markdown 视图查看模拟数据
+  viewMode.value = 'markdown'
+
+  // 创建一个临时的 mock 内容用于测试
+  const mockContent = MOCK_MINDMAP_DATA
+
+  console.log('🔄 [MindmapPanel] 清空 SVG')
+  clearSVG()
+
+  console.log('🔄 [MindmapPanel] 切换到交互模式并渲染')
+  nextTick(() => {
+    viewMode.value = 'interactive'
+    nextTick(() => {
+      // 直接使用模拟数据渲染
+      try {
+        const transformer = new Transformer()
+        const { root } = transformer.transform(mockContent)
+        console.log('🌳 [Mock测试] 根节点:', root)
+
+        markmapInstance.value = Markmap.create(svgMindmap.value, {
+          autoFit: true,
+          fitRatio: 0.95
+        })
+        markmapInstance.value.setData(root)
+        setTimeout(() => markmapInstance.value?.fit(), 100)
+
+        console.log('✅ [Mock测试] 渲染成功')
+      } catch (error) {
+        console.error('❌ [Mock测试] 渲染失败:', error)
+      }
+    })
+  })
 }
 
-const zoomOut = () => {
-  if (viewMode.value === 'interactive' && markmapInstance.value) {
-    markmapInstance.value.fit()
-  } else {
-    scale.value = Math.max(scale.value / 1.2, 0.3)
-  }
-}
-
-const resetZoom = () => {
-  if (viewMode.value === 'interactive' && markmapInstance.value) {
-    markmapInstance.value.fit()
-  } else {
-    scale.value = 1
-  }
-}
-
-const fitToScreen = () => {
-  if (viewMode.value === 'interactive' && markmapInstance.value) {
-    markmapInstance.value.fit()
-  }
-}
+const zoomIn = () => scale.value = Math.min(scale.value * 1.2, 3)
+const zoomOut = () => scale.value = Math.max(scale.value / 1.2, 0.3)
+const resetZoom = () => scale.value = 1
+const fitToScreen = () => markmapInstance.value?.fit()
 
 const toggleView = async () => {
   viewMode.value = viewMode.value === 'interactive' ? 'markdown' : 'interactive'
-
   if (viewMode.value === 'interactive') {
     await nextTick()
     renderMindmap()
   }
 }
 
-const startDrag = (e) => {
-  isDragging.value = true
-  dragStartX.value = e.clientX - translateX.value
-  dragStartY.value = e.clientY - translateY.value
-}
-
-const onDrag = (e) => {
-  if (!isDragging.value || !markmapInstance.value) return
-
-  // markmap有自己的拖拽处理，这里不需要额外处理
-}
-
-const stopDrag = () => {
-  isDragging.value = false
-}
-
-const onWheel = (e) => {
-  if (viewMode.value === 'interactive' && markmapInstance.value) {
-    // markmap有自己的滚轮处理
-    return
-  }
-  e.preventDefault()
-}
+const startDrag = () => isDragging.value = true
+const stopDrag = () => isDragging.value = false
+const onDrag = () => {}
+const onWheel = (e) => e.preventDefault()
 
 const exportMindmap = () => {
-  const blob = new Blob([mindmapMarkdown.value], { type: 'text/markdown' })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${props.videoTitle || '思维导图'}_${Date.now()}.md`
-  link.click()
-  window.URL.revokeObjectURL(url)
-  ElMessage.success('导出成功！')
+  const blob = new Blob([mindmapContent.value], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `思维导图_${Date.now()}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出成功')
 }
 
-// 组件挂载后初始化
-onMounted(async () => {
-  if (props.summaryData && viewMode.value === 'interactive') {
-    await nextTick()
-    renderMindmap()
-  }
-})
-
-// 组件卸载时清理
-onUnmounted(() => {
-  if (markmapInstance.value) {
-    markmapInstance.value = null
-  }
-})
+onMounted(() => renderMindmap())
 </script>
 
 <style scoped>
-.mindmap-canvas {
-  position: relative;
-}
-
-.mindmap-svg {
-  display: block;
-}
-
+.mindmap-canvas { position: relative; }
+.mindmap-svg { display: block; }
 .mindmap-markdown {
   margin: 0;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 14px;
   line-height: 1.6;
   color: #333;
   background: #f8f9fa;
-  border-radius: 8px;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* markmap样式覆盖 */
-:deep(.markmap) {
-  width: 100%;
-  height: 100%;
-}
-
-:deep(.markmap svg) {
-  width: 100%;
-  height: 100%;
 }
 </style>

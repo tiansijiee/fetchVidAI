@@ -36,7 +36,12 @@ class SubtitleExtractor:
     @classmethod
     def extract_subtitles(cls, url: str, lang: str = 'zh-Hans') -> Dict:
         """
-        提取视频字幕 - 增强版，支持B站公开字幕无需Cookie
+        提取视频字幕 - 严格遵守优先级
+
+        优先级（必须遵守）：
+        1. B站专用API路径（api.bilibili.com → dm/view）
+        2. 其他平台统一走yt-dlp提取字幕
+        3. 若以上两种方式都提取失败，最后兜底走ASR视频语音识别
 
         Args:
             url: 视频链接
@@ -46,30 +51,49 @@ class SubtitleExtractor:
             {
                 'success': bool,
                 'has_subtitle': bool,
-                'subtitles': List[{'time': str, 'text': str}],
+                'segments': List[{'start': float, 'end': float, 'text': str}],  # 统一格式
                 'full_text': str,
                 'language': str,
-                'message': str
+                'message': str,
+                'can_fallback_to_asr': bool  # 是否可以降级到ASR
             }
         """
         try:
             # 检查平台支持
             platform = cls.identify_platform(url)
-            if not platform:
-                return {
-                    'success': False,
-                    'has_subtitle': False,
-                    'message': f'该平台暂不支持字幕提取，目前仅支持B站和YouTube'
-                }
-
             print(f"[SUBTITLE] Platform: {platform}, URL: {url[:50]}", file=sys.stderr)
 
-            # ========== 核心修复：B站字幕提取优化 ==========
+            # ========== 优先级1: B站专用API路径 ==========
             if platform == 'bilibili':
-                return cls._extract_bilibili_subtitles(url, lang)
+                print("[SUBTITLE] B站视频，优先使用API获取字幕", file=sys.stderr)
 
-            # ========== YouTube等其他平台 ==========
-            return cls._extract_generic_subtitles(url, lang, platform)
+                # 先获取视频信息（用于提取bvid和cid）
+                info = cls._get_video_info(url)
+                bvid = info.get('id') or info.get('bvid')
+
+                if bvid:
+                    # 直接调用B站API
+                    result = cls._fetch_bilibili_subtitles_api(bvid, info)
+                    if result.get('success') and result.get('has_subtitle'):
+                        print("[SUBTITLE] ✓ B站API获取字幕成功", file=sys.stderr)
+                        return result
+                    print("[SUBTITLE] B站API获取失败，尝试yt-dlp", file=sys.stderr)
+
+            # ========== 优先级2: yt-dlp通用路径 ==========
+            print("[SUBTITLE] 使用yt-dlp提取字幕", file=sys.stderr)
+            result = cls._extract_with_ydl(url, lang, platform)
+
+            if result.get('success') and result.get('has_subtitle'):
+                return result
+
+            # ========== 优先级3: ASR兜底（返回标识，由调用方处理）==========
+            print("[SUBTITLE] 所有字幕提取方式失败，可使用ASR兜底", file=sys.stderr)
+            return {
+                'success': False,
+                'has_subtitle': False,
+                'can_fallback_to_asr': True,  # 标识可以降级到ASR
+                'message': '字幕提取失败，可使用ASR语音识别生成字幕'
+            }
 
         except Exception as e:
             error_msg = str(e)
@@ -79,7 +103,81 @@ class SubtitleExtractor:
             return {
                 'success': False,
                 'has_subtitle': False,
-                'can_fallback_to_audio': True,  # 标识可以降级到音频转写
+                'can_fallback_to_asr': True,  # 标识可以降级到ASR
+                'message': f'字幕提取失败: {error_msg[:200]}'
+            }
+
+    @classmethod
+    def _get_video_info(cls, url: str) -> Dict:
+        """
+        获取视频基本信息（用于提取bvid、cid等）
+
+        Args:
+            url: 视频链接
+
+        Returns:
+            视频信息字典，包含 id, bvid, cid 等字段
+        """
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'extract_flat': False,
+            'nocheckcertificate': True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                return info
+        except Exception as e:
+            print(f"[SUBTITLE] 获取视频信息失败: {str(e)[:100]}", file=sys.stderr)
+            return {}
+
+    @classmethod
+    def _extract_with_ydl(cls, url: str, lang: str, platform: str) -> Dict:
+        """
+        使用yt-dlp提取字幕（通用路径）
+
+        处理流程：
+        1. 调用yt-dlp的extract_info方法，设置writesubtitles=True
+        2. 处理返回的VTT/WebVTT格式字幕
+        3. 解析为统一的segments格式（start/end/text）
+
+        Args:
+            url: 视频链接
+            lang: 字幕语言
+            platform: 平台标识
+
+        Returns:
+            字幕提取结果
+        """
+        ydl_opts = {
+            'quiet': False,
+            'no_warnings': False,
+            'skip_download': True,
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': [lang, 'zh-Hans', 'zh', 'zh-Hant', 'en'],
+            'subtitlesformat': 'json',  # 优先使用JSON格式
+            'extract_flat': False,
+            'nocheckcertificate': True,
+            'verbose': False,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                return cls._process_subtitle_info(info, lang, url)
+
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[SUBTITLE-{platform.upper()}] Error: {error_msg[:200]}", file=sys.stderr)
+
+            return {
+                'success': False,
+                'has_subtitle': False,
+                'can_fallback_to_asr': True,
                 'message': f'字幕提取失败: {error_msg[:200]}'
             }
 
@@ -205,49 +303,77 @@ class SubtitleExtractor:
     @classmethod
     def _fetch_bilibili_subtitles_api(cls, bvid: str, info: dict) -> Dict:
         """
-        直接从B站API获取字幕（降级方案）
+        直接从B站API获取字幕（降级方案）- 使用正确的API端点
+
+        优先级:
+        1. 调用 /x/web-interface/view 获取视频信息和cid
+        2. 调用 /x/v2/dm/view 获取字幕列表
+        3. 下载JSON字幕并解析为统一格式
 
         Args:
             bvid: B站视频ID
             info: yt-dlp获取的视频信息
 
         Returns:
-            字幕提取结果
+            字幕提取结果，格式: { success, has_subtitle, segments: [{start, end, text}], full_text, ... }
         """
         import requests
 
         try:
-            cid = info.get('cid') or info.get('chapter_id')
-            if not cid:
-                print("[SUBTITLE-BILI-API] 缺少cid，无法调用API", file=sys.stderr)
-                return {'success': False, 'has_subtitle': False}
-
-            # B站字幕API
-            api_url = f"https://api.bilibili.com/x/player/v2"
-            params = {
-                'bvid': bvid,
-                'cid': cid
-            }
-
+            # ========== 步骤1: 获取视频信息和cid ==========
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Referer': f'https://www.bilibili.com/video/{bvid}',
                 'Accept': 'application/json',
             }
 
-            print(f"[SUBTITLE-BILI-API] 请求: {api_url}", file=sys.stderr)
+            # 首先尝试从yt-dlp info中获取cid
+            cid = info.get('cid') or info.get('chapter_id')
 
-            response = requests.get(api_url, params=params, headers=headers, timeout=15)
-            response.raise_for_status()
+            if not cid:
+                # 如果没有cid，调用API获取
+                view_api_url = "https://api.bilibili.com/x/web-interface/view"
+                view_params = {'bvid': bvid}
 
-            data = response.json()
+                print(f"[SUBTITLE-BILI-API] 调用 {view_api_url}?bvid={bvid}", file=sys.stderr)
 
-            if data.get('code') != 0:
-                print(f"[SUBTITLE-BILI-API] API错误: {data.get('message')}", file=sys.stderr)
+                view_response = requests.get(view_api_url, params=view_params, headers=headers, timeout=15)
+                view_response.raise_for_status()
+                view_data = view_response.json()
+
+                if view_data.get('code') != 0:
+                    print(f"[SUBTITLE-BILI-API] View API错误: {view_data.get('message')}", file=sys.stderr)
+                    return {'success': False, 'has_subtitle': False}
+
+                # 从响应中提取cid
+                cid = view_data.get('data', {}).get('cid') or view_data.get('data', {}).get('pages', [{}])[0].get('cid')
+
+                if not cid:
+                    print("[SUBTITLE-BILI-API] 无法获取cid", file=sys.stderr)
+                    return {'success': False, 'has_subtitle': False}
+
+            print(f"[SUBTITLE-BILI-API] 获取到cid: {cid}", file=sys.stderr)
+
+            # ========== 步骤2: 获取字幕列表 ==========
+            subtitle_api_url = "https://api.bilibili.com/x/player/v2/dm/view"
+            subtitle_params = {
+                'bvid': bvid,
+                'cid': cid
+            }
+
+            print(f"[SUBTITLE-BILI-API] 调用 {subtitle_api_url}?bvid={bvid}&cid={cid}", file=sys.stderr)
+
+            subtitle_response = requests.get(subtitle_api_url, params=subtitle_params, headers=headers, timeout=15)
+            subtitle_response.raise_for_status()
+
+            subtitle_data = subtitle_response.json()
+
+            if subtitle_data.get('code') != 0:
+                print(f"[SUBTITLE-BILI-API] Subtitle API错误: {subtitle_data.get('message')}", file=sys.stderr)
                 return {'success': False, 'has_subtitle': False}
 
-            # 解析字幕数据
-            subtitle_info = data.get('data', {}).get('subtitle', {})
+            # ========== 步骤3: 解析字幕数据 ==========
+            subtitle_info = subtitle_data.get('data', {}).get('subtitle', {})
             subtitles_list = subtitle_info.get('subtitles', [])
 
             if not subtitles_list:
@@ -262,48 +388,83 @@ class SubtitleExtractor:
                 print("[SUBTITLE-BILI-API] 字幕URL缺失", file=sys.stderr)
                 return {'success': False, 'has_subtitle': False}
 
-            # 下载字幕内容
+            # ========== 步骤4: 下载字幕内容 ==========
             full_subtitle_url = f"https:{subtitle_url}" if not subtitle_url.startswith('http') else subtitle_url
+
+            print(f"[SUBTITLE-BILI-API] 下载字幕: {full_subtitle_url}", file=sys.stderr)
 
             sub_response = requests.get(full_subtitle_url, headers=headers, timeout=15)
             sub_response.raise_for_status()
 
             subtitle_content = sub_response.json()
 
-            # 解析B站JSON字幕格式
-            formatted_subtitles = cls._parse_bilibili_subtitle(subtitle_content)
+            # ========== 步骤5: 解析为统一格式 ==========
+            segments = cls._parse_bilibili_subtitle_to_segments(subtitle_content)
 
-            if formatted_subtitles:
-                full_text = '\n'.join([s['text'] for s in formatted_subtitles])
+            if segments:
+                full_text = '\n'.join([s['text'] for s in segments])
+
+                print(f"[SUBTITLE-BILI-API] ✓ 字幕提取成功! 共{len(segments)}条", file=sys.stderr)
 
                 return {
                     'success': True,
                     'has_subtitle': True,
-                    'subtitles': formatted_subtitles,
+                    'segments': segments,  # 新格式: [{start, end, text}]
+                    'subtitles': segments,  # 兼容旧格式
                     'full_text': full_text,
                     'language': 'zh-Hans',
-                    'subtitle_count': len(formatted_subtitles),
-                    'message': '字幕提取成功（API降级方案）'
+                    'subtitle_count': len(segments),
+                    'message': '字幕提取成功（B站API）'
                 }
 
             return {'success': False, 'has_subtitle': False}
 
+        except requests.exceptions.RequestException as e:
+            print(f"[SUBTITLE-BILI-API] 网络请求异常: {str(e)[:100]}", file=sys.stderr)
+            return {'success': False, 'has_subtitle': False}
         except Exception as e:
             print(f"[SUBTITLE-BILI-API] 异常: {str(e)[:100]}", file=sys.stderr)
             return {'success': False, 'has_subtitle': False}
 
-    @classmethod
-    def _parse_bilibili_subtitle(cls, subtitle_data: dict) -> List[Dict]:
+    @staticmethod
+    def _format_seconds_to_time(seconds: float) -> str:
         """
-        解析B站JSON字幕格式
+        将秒数转换为时间字符串格式 (MM:SS 或 HH:MM:SS)
 
-        B站字幕格式示例:
+        Args:
+            seconds: 秒数
+
+        Returns:
+            str: 时间字符串，如 "01:23" 或 "1:23:45"
+        """
+        if not seconds or seconds < 0:
+            return "00:00"
+
+        seconds = float(seconds)
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes:02d}:{secs:02d}"
+
+    @classmethod
+    def _parse_bilibili_subtitle_to_segments(cls, subtitle_data: dict) -> List[Dict]:
+        """
+        解析B站JSON字幕格式为统一segments格式: [{start, end, text, time}]
+
+        B站字幕格式:
         {
             "body": [
                 {"from": 0, "to": 5, "location": 2, "content": "字幕内容"},
                 ...
             ]
         }
+
+        Returns:
+            [{start: float, end: float, text: str, time: str}]
         """
         result = []
 
@@ -311,19 +472,19 @@ class SubtitleExtractor:
             body = subtitle_data.get('body', [])
 
             for item in body:
-                start_time = item.get('from', 0)  # 秒
-                end_time = item.get('to', 0)  # 秒
+                start = item.get('from', 0)  # 秒
+                end = item.get('to', 0)  # 秒
                 content = item.get('content', '')
 
                 if content.strip():
-                    start_str = cls._format_seconds(start_time)
-                    end_str = cls._format_seconds(end_time)
+                    # 格式化时间字符串
+                    time_str = cls._format_seconds_to_time(start)
 
                     result.append({
-                        'time': f"{start_str} --> {end_str}",
-                        'start_time': start_str,
-                        'end_time': end_str,
-                        'text': content.strip()
+                        'start': float(start),
+                        'end': float(end),
+                        'text': content.strip(),
+                        'time': time_str  # 添加time字段
                     })
 
             return result
@@ -331,40 +492,6 @@ class SubtitleExtractor:
         except Exception as e:
             print(f"[SUBTITLE-BILI] 解析B站字幕失败: {str(e)}", file=sys.stderr)
             return []
-
-    @classmethod
-    def _extract_generic_subtitles(cls, url: str, lang: str, platform: str) -> Dict:
-        """
-        通用字幕提取（YouTube等平台）
-        """
-        ydl_opts = {
-            'quiet': False,
-            'no_warnings': False,
-            'skip_download': True,
-            'writesubtitles': True,
-            'writeautomaticsub': True,
-            'subtitleslangs': [lang, 'zh', 'zh-Hans', 'zh-Hant', 'en'],
-            'subtitlesformat': 'json',
-            'extract_flat': False,
-            'nocheckcertificate': True,
-            'verbose': False,
-        }
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                return cls._process_subtitle_info(info, lang, url)
-
-        except Exception as e:
-            error_msg = str(e)
-            print(f"[SUBTITLE-{platform.upper()}] Error: {error_msg[:200]}", file=sys.stderr)
-
-            return {
-                'success': False,
-                'has_subtitle': False,
-                'can_fallback_to_audio': True,
-                'message': f'字幕提取失败: {error_msg[:200]}'
-            }
 
     @classmethod
     def _process_subtitle_info(cls, info: dict, lang: str, url: str) -> Dict:

@@ -56,3 +56,6 @@ backend/cookies/
 backend/temp/
 backend/*.db
 backend/*.sqlite
+
+# Claude Code local settings
+.claude/
