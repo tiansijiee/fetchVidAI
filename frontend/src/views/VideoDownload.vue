@@ -374,7 +374,9 @@
                       <div v-if="section.subsections && section.subsections.length > 0" class="space-y-4 mt-3">
                         <div v-for="(subsection, subIndex) in section.subsections" :key="subIndex" class="space-y-2">
                           <!-- 章节标题 (1. xxx) - 蓝色、16px、加粗、无缩进 -->
-                          <h4 class="text-[16px] font-bold text-[#1E40AF]">{{ subsection.title }}</h4>
+                          <h4 class="text-[16px] font-bold text-[#1677ff]">
+                            {{ subsection.number }}{{ subsection.number ? '. ' : '' }}{{ subsection.title }}
+                          </h4>
 
                           <!-- 章节列表内容 - 黑色、14px、左边缩进16px、圆点符号 -->
                           <div v-if="subsection.listItems && subsection.listItems.length > 0" class="space-y-2 ml-4">
@@ -546,14 +548,24 @@
                       </svg>
                       全屏查看
                     </button>
+                    <!-- 下载格式切换按钮 -->
                     <button
-                      @click="downloadMindmap('md')"
+                      @click="toggleMindmapDownloadFormat"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                      </svg>
+                      {{ mindmapDownloadFormat === 'png' ? 'PNG' : 'MD' }}
+                    </button>
+                    <button
+                      @click="downloadMindmap(mindmapDownloadFormat)"
                       class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1677ff] text-white hover:bg-[#1455cc] transition-colors flex items-center gap-1"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                       </svg>
-                      下载MD
+                      下载{{ mindmapDownloadFormat === 'png' ? 'PNG' : 'MD' }}
                     </button>
                   </div>
                 </div>
@@ -580,7 +592,7 @@
                       v-if="mindmapViewMode === 'interactive'"
                       ref="mindmapSvg"
                       class="mindmap-svg w-full"
-                      :style="mindmapFullscreen ? 'height: calc(100vh - 100px)' : 'height: 450px'"
+                      :style="mindmapFullscreen ? 'height: calc(100vh - 100px)' : 'height: 600px'"
                     ></svg>
 
                     <!-- Markdown 文本视图 -->
@@ -819,6 +831,7 @@ const subtitleFormat = ref('srt') // srt 或 txt
 // 思维导图相关状态
 const mindmapFullscreen = ref(false)
 const mindmapViewMode = ref('interactive') // 'interactive' 或 'markdown'
+const mindmapDownloadFormat = ref('png') // 'png' 或 'md'，默认PNG
 const mindmapSvg = ref(null)
 const markmapInstance = ref(null)
 
@@ -919,15 +932,19 @@ const parseSummaryText = (text) => {
     // 在【内容大纲】模块内，检测章节标题（1. xxx、2. xxx 等）
     else if (inContentOutline && line.match(/^\d+\.\s+(.+)$/)) {
       const titleMatch = line.match(/^\d+\.\s+(.+)$/)
+      const numberMatch = line.match(/^(\d+)\.\s+(.+)$/)
+      const chapterNumber = numberMatch ? numberMatch[1] : ''
       const chapterTitle = titleMatch[1].trim()
       if (chapterTitle) {
         // 保存上一个章节（如果有列表项）
         if (currentSubsections.length > 0 && currentSubsections[currentSubsections.length - 1].listItems.length === 0) {
           // 上一个章节没有列表项，直接替换标题
           currentSubsections[currentSubsections.length - 1].title = chapterTitle
+          currentSubsections[currentSubsections.length - 1].number = chapterNumber
         } else {
           // 创建新章节
           currentSubsections.push({
+            number: chapterNumber,  // 保存编号
             title: chapterTitle,
             listItems: []
           })
@@ -1014,22 +1031,103 @@ const toggleSubtitleExpanded = () => {
 }
 
 // 下载思维导图
-const downloadMindmap = (format = 'md') => {
+const downloadMindmap = async (format = 'md') => {
   if (!aiMindmap.value) {
     ElMessage.warning('暂无思维导图可下载')
     return
   }
 
   const filename = `${videoData.value?.title || 'mindmap'}.${format}`
-  const blob = new Blob([aiMindmap.value], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
 
-  ElMessage.success(`思维导图已下载为 ${format.toUpperCase()} 格式`)
+  if (format === 'md') {
+    // 下载Markdown格式
+    const blob = new Blob([aiMindmap.value], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+
+    ElMessage.success('思维导图已下载为 MD 格式')
+  } else if (format === 'png') {
+    // 下载PNG格式
+    if (!mindmapSvg.value) {
+      ElMessage.warning('思维导图未渲染完成，请稍后再试')
+      return
+    }
+
+    try {
+      // 获取SVG元素
+      const svgElement = mindmapSvg.value
+
+      // 克隆SVG以避免修改原始元素
+      const svgClone = svgElement.cloneNode(true)
+
+      // 添加必要的命名空间和属性，避免CORS问题
+      if (!svgClone.getAttribute('xmlns')) {
+        svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+      }
+      if (!svgClone.getAttribute('xmlns:xlink')) {
+        svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+      }
+
+      // 序列化SVG
+      const svgData = new XMLSerializer().serializeToString(svgClone)
+
+      // 创建Canvas
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const svgSize = svgElement.getBoundingClientRect()
+
+      // 设置Canvas尺寸（放大以获得更好的质量）
+      const scale = 2 // 2倍清晰度
+      canvas.width = svgSize.width * scale
+      canvas.height = svgSize.height * scale
+
+      // 创建图像对象，设置crossOrigin以避免CORS问题
+      const img = new Image()
+      img.crossOrigin = 'anonymous'  // 关键：设置跨域属性
+
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+
+      img.onload = () => {
+        // 绘制到Canvas
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+        // 转换为PNG并下载
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const link = document.createElement('a')
+            link.href = URL.createObjectURL(blob)
+            link.download = filename
+            link.click()
+            URL.revokeObjectURL(link.href)
+            URL.revokeObjectURL(url)
+
+            ElMessage.success('思维导图已下载为 PNG 格式')
+          } else {
+            ElMessage.error('PNG生成失败，请重试或使用MD格式')
+            URL.revokeObjectURL(url)
+          }
+        }, 'image/png')
+      }
+
+      img.onerror = (error) => {
+        console.error('Image load error:', error)
+        ElMessage.error('PNG导出失败，请重试或使用MD格式')
+        URL.revokeObjectURL(url)
+      }
+
+      img.src = url
+    } catch (error) {
+      console.error('PNG导出错误:', error)
+      ElMessage.error('PNG导出失败: ' + error.message)
+    }
+  }
 }
 
 // 切换思维导图全屏
@@ -1039,6 +1137,11 @@ const toggleMindmapFullscreen = () => {
   if (mindmapFullscreen.value && mindmapViewMode.value === 'interactive') {
     nextTick(() => renderMindmap())
   }
+}
+
+// 切换思维导图下载格式
+const toggleMindmapDownloadFormat = () => {
+  mindmapDownloadFormat.value = mindmapDownloadFormat.value === 'png' ? 'md' : 'png'
 }
 
 // ==============================================
@@ -1068,15 +1171,31 @@ const renderMindmap = async () => {
     // 创建新的 Markmap 实例
     markmapInstance.value = Markmap.create(mindmapSvg.value, {
       autoFit: true,
-      fitRatio: 0.95
+      fitRatio: 0.75,  // 降低比例，让内容显示更大
+      duration: 500,  // 动画持续时间
+      center: true,  // 居中显示
+      zoom: true,  // 启用缩放功能
+      pan: true  // 启用平移功能
     })
 
     markmapInstance.value.setData(root)
 
-    // 延迟适配视图
+    // 多次延迟适配视图，确保完全渲染
     setTimeout(() => {
       markmapInstance.value?.fit()
     }, 100)
+
+    setTimeout(() => {
+      markmapInstance.value?.fit()
+    }, 500)
+
+    // 最后再适配一次，确保放大显示
+    setTimeout(() => {
+      if (markmapInstance.value) {
+        // 使用fit多次来达到放大效果
+        markmapInstance.value.fit()
+      }
+    }, 1000)
 
     console.log('🎉 [VideoDownload] 交互式思维导图渲染完成')
 
@@ -1200,13 +1319,19 @@ const startAIAnalysis = async () => {
   activeAITab.value = 'summary'
 
   try {
+    // 如果已有字幕文本，直接传递给后端，避免重复提取
+    const subtitleText = aiSubtitles.value.length > 0
+      ? aiSubtitles.value.map(sub => sub.text).join('\n')
+      : null
+
     const response = await fetch('/api/ai/summarize/char-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: originalUrl.value,
         title: videoData.value?.title || '',
-        description: videoData.value?.description || ''
+        description: videoData.value?.description || '',
+        subtitle_text: subtitleText  // 新增：传递已有字幕，大幅提升速度
       })
     })
 
@@ -1471,12 +1596,18 @@ const sendAIChat = async () => {
   aiChatMessages.value.push({ role: 'assistant', content: '' })
 
   try {
+    // 如果已有字幕文本，直接传递给后端
+    const subtitleText = aiSubtitles.value.length > 0
+      ? aiSubtitles.value.map(sub => sub.text).join('\n')
+      : null
+
     const response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: originalUrl.value,
         question,
+        subtitle_text: subtitleText,  // 新增：传递已有字幕
         video_info: {
           title: videoData.value?.title || '',
           description: videoData.value?.description || ''

@@ -355,7 +355,8 @@ class SubtitleExtractor:
             print(f"[SUBTITLE-BILI-API] 获取到cid: {cid}", file=sys.stderr)
 
             # ========== 步骤2: 获取字幕列表 ==========
-            subtitle_api_url = "https://api.bilibili.com/x/player/v2/dm/view"
+            # 使用正确的B站字幕API（非播放器API）
+            subtitle_api_url = "https://api.bilibili.com/x/v2/dm/view"
             subtitle_params = {
                 'bvid': bvid,
                 'cid': cid

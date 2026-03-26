@@ -607,30 +607,45 @@ def summarize_video_char_stream():
         video_title = data.get('title', '视频内容')
         video_description = data.get('description', '')
         use_asr = data.get('use_asr', False)
+        client_subtitle_text = data.get('subtitle_text', '')  # 新增：接收前端传递的字幕
 
         print(f"[AI] Processing: {video_title[:50]}", file=sys.stderr)
+        if client_subtitle_text:
+            print(f"[AI] 客户端已提供字幕，长度: {len(client_subtitle_text)}字符，跳过字幕提取", file=sys.stderr)
 
         def generate():
             """SSE生成器函数 - 逐字流式输出"""
             try:
+                import time
+                start_time = time.time()
+
                 # ========== 步骤1: 提取字幕（严格遵守优先级）==========
                 subtitle_text = None
                 subtitle_segments = []  # 字幕片段 [{start, end, text}]
                 source = 'unknown'
 
+                # 优先级0: 如果前端已提供字幕，直接使用（最快！）
+                if client_subtitle_text:
+                    subtitle_text = client_subtitle_text
+                    source = 'client_provided'
+                    print(f"[AI] ✓ 使用客户端提供的字幕! 长度: {len(subtitle_text)}字符, 耗时: {time.time()-start_time:.2f}s", file=sys.stderr)
+
+                    # 发送进度事件
+                    yield f"data: {json.dumps({'type': 'progress', 'message': '使用已有字幕，开始AI分析...'}, ensure_ascii=False)}\n\n"
                 # 优先级1+2: 调用字幕提取器（内部已处理B站API优先和yt-dlp）
-                print("[AI] 步骤1: 尝试提取字幕...", file=sys.stderr)
-                subtitle_result = SubtitleExtractor.extract_subtitles(url)
+                else:
+                    print("[AI] 步骤1: 尝试提取字幕...", file=sys.stderr)
+                    subtitle_result = SubtitleExtractor.extract_subtitles(url)
 
-                if subtitle_result.get('success') and subtitle_result.get('has_subtitle'):
-                    subtitle_text = subtitle_result.get('full_text', '')
-                    subtitle_segments = subtitle_result.get('segments') or subtitle_result.get('subtitles') or []
-                    source = 'subtitle'
-                    print(f"[AI] ✓ 字幕提取成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条", file=sys.stderr)
+                    if subtitle_result.get('success') and subtitle_result.get('has_subtitle'):
+                        subtitle_text = subtitle_result.get('full_text', '')
+                        subtitle_segments = subtitle_result.get('segments') or subtitle_result.get('subtitles') or []
+                        source = 'subtitle'
+                        print(f"[AI] ✓ 字幕提取成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条, 耗时: {time.time()-start_time:.2f}s", file=sys.stderr)
 
-                # 优先级3: ASR兜底（如果字幕提取失败且允许ASR）
-                elif subtitle_result.get('can_fallback_to_asr') or use_asr:
-                    print("[AI] 字幕提取失败，启用ASR语音识别兜底...", file=sys.stderr)
+                    # 优先级3: ASR兜底（如果字幕提取失败且允许ASR）
+                    if not subtitle_text and (subtitle_result.get('can_fallback_to_asr') or use_asr):
+                        print("[AI] 字幕提取失败，启用ASR语音识别兜底...", file=sys.stderr)
 
                     AudioTranscriber = get_audio_transcriber()
                     if AudioTranscriber and AudioTranscriber.check_ffmpeg() and AudioTranscriber.check_whisper():
