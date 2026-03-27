@@ -320,7 +320,7 @@
             </div>
 
             <!-- Tab内容区 -->
-            <div class="bg-white rounded-lg border border-gray-200 p-5 min-h-[500px] shadow-sm">
+            <div class="bg-white rounded-lg border border-gray-200 p-5 h-[600px] overflow-y-auto shadow-sm">
 
               <!-- 视频总结 Tab - SSE逐字打字机效果 -->
               <div v-if="activeAITab === 'summary'" class="space-y-4">
@@ -782,6 +782,7 @@ import { Transformer } from 'markmap-lib'
 import { Markmap } from 'markmap-view'
 import UserMenu from '../components/UserMenu.vue'
 import auth from '../auth/auth'
+import { getFingerprint } from '../utils/fingerprint'
 
 // 🔥 加在这里：强制刷新次数显示
 const triggerUpdate = ref(0)
@@ -1199,9 +1200,24 @@ onUnmounted(() => {
 
 // 解析视频 - 同时触发AI分析
 const parseVideo = async () => {
+  downloading.value = false
   const url = videoUrl.value.trim()
   if (!url) {
     error.value = '请输入视频链接'
+    return
+  }
+
+  // 检查剩余次数（前端预检查）
+  const quota = auth.quota
+  if (quota && typeof quota.parse_remaining === 'number' && quota.parse_remaining <= 0) {
+    const role = auth.getRole()
+    if (role === 'guest') {
+      ElMessage.warning('今日解析次数已用完，注册后每日3次')
+      window.dispatchEvent(new CustomEvent('auth:login-required'))
+    } else {
+      ElMessage.warning('今日解析次数已用完，开通VIP无限使用')
+      window.dispatchEvent(new CustomEvent('auth:upgrade-required'))
+    }
     return
   }
 
@@ -1225,6 +1241,18 @@ const parseVideo = async () => {
     })
 
     const result = await response.json()
+
+    // 检查是否是次数不足错误
+    if (result.code === 'QUOTA_EXCEEDED') {
+      loading.value = false
+      error.value = result.message || '今日解析次数已用完'
+      if (result.require_login) {
+        window.dispatchEvent(new CustomEvent('auth:login-required'))
+      } else {
+        window.dispatchEvent(new CustomEvent('auth:upgrade-required'))
+      }
+      return
+    }
 
     if (result.success) {
       videoData.value = result.data
@@ -1307,9 +1335,24 @@ const startAIAnalysis = async () => {
       ElMessage.error('AI分析超时，请稍后重试或尝试其他视频')
     }, AI_TIMEOUT)
 
+    // 获取fingerprint和token
+    const fingerprint = getFingerprint()
+    const token = auth.getToken()
+
+    // 构建请求头
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (fingerprint) {
+      headers['X-Fingerprint'] = fingerprint
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch('/api/ai/summarize/char-stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
         url: originalUrl.value,
         title: videoData.value?.title || '',
@@ -1459,6 +1502,9 @@ const startAIAnalysis = async () => {
               aiInitialLoading.value = false
               aiAnalysisComplete.value = true
               ElMessage.success('AI分析完成！')
+
+              // 刷新剩余次数
+              auth.refreshQuota()
             }
             else if (currentEventType === 'error') {
               throw new Error(data.message || '生成失败')
@@ -1487,6 +1533,20 @@ const downloadVideo = async () => {
     return
   }
 
+  // 检查剩余次数（前端预检查）
+  const quota = auth.quota
+  if (quota && typeof quota.download_remaining === 'number' && quota.download_remaining <= 0) {
+    const role = auth.getRole()
+    if (role === 'guest') {
+      ElMessage.warning('今日下载次数已用完，注册后每日3次')
+      window.dispatchEvent(new CustomEvent('auth:login-required'))
+    } else {
+      ElMessage.warning('今日下载次数已用完，开通VIP无限使用')
+      window.dispatchEvent(new CustomEvent('auth:upgrade-required'))
+    }
+    return
+  }
+
   downloading.value = true
   downloadProgress.value = 0
   let shouldContinuePolling = true  // 轮询控制标志
@@ -1494,9 +1554,22 @@ const downloadVideo = async () => {
   try {
     ElMessage.info('开始下载，请稍候...')
 
+    // 构建请求头（包含fingerprint和token）
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    const fingerprint = getFingerprint()
+    if (fingerprint) {
+      headers['X-Fingerprint'] = fingerprint
+    }
+    const token = auth.getToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const startResponse = await fetch('/api/proxy/download', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
         video_url: originalUrl.value,
         filename: videoData.value.title,
@@ -1506,6 +1579,19 @@ const downloadVideo = async () => {
 
     const startData = await startResponse.json()
     console.log('[DOWNLOAD] 开始下载响应:', startData)
+
+    // 检查是否是次数不足错误
+    if (startData.code === 'QUOTA_EXCEEDED') {
+      downloading.value = false
+      if (startData.require_login) {
+        ElMessage.warning(startData.message || '今日下载次数已用完')
+        window.dispatchEvent(new CustomEvent('auth:login-required'))
+      } else {
+        ElMessage.warning(startData.message || '今日下载次数已用完')
+        window.dispatchEvent(new CustomEvent('auth:upgrade-required'))
+      }
+      return
+    }
 
     // 增强错误处理：检查 success 字段和 status 字段
     if (startData.success === false || startData.status === 'error') {
@@ -1521,77 +1607,69 @@ const downloadVideo = async () => {
     downloadTaskId.value = startData.task_id
 
     const pollStatus = async () => {
-      // 检查是否应该继续轮询
-      if (!shouldContinuePolling) {
-        console.log('[DOWNLOAD] 轮询已停止')
-        return
+  if (!shouldContinuePolling) {
+    console.log('[DOWNLOAD] 轮询已停止')
+    return
+  }
+
+  try {
+    const statusResponse = await fetch(`/api/proxy/download/status/${downloadTaskId.value}`)
+
+    if (!statusResponse.ok) {
+      throw new Error(`服务器错误: ${statusResponse.status}`)
+    }
+
+    let status
+    try {
+      status = await statusResponse.json()
+      console.log('[DOWNLOAD] 状态响应:', status)
+    } catch (jsonErr) {
+      throw new Error('服务器响应格式错误')
+    }
+
+    if (status.status === 'error') {
+      const errorMsg = status.error || '下载失败，请稍后重试'
+      console.log('[DOWNLOAD] 检测到错误状态:', errorMsg)
+      downloading.value = false
+      shouldContinuePolling = false
+      // 直接提示，不抛出！
+      ElMessage.error(errorMsg)
+      return
+    }
+
+    if (status.status === 'completed') {
+      shouldContinuePolling = false
+
+      const fileResponse = await fetch(`/api/proxy/download/file/${downloadTaskId.value}`)
+      const blob = await fileResponse.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = status.filename
+      link.click()
+      window.URL.revokeObjectURL(url)
+      ElMessage.success('下载完成！')
+      downloading.value = false
+      downloadProgress.value = 100
+
+      auth.refreshQuota()
+    } else {
+      const newProgress = status.progress || 0
+      if (newProgress > 0) {
+        downloadProgress.value = newProgress
       }
-
-      try {
-        const statusResponse = await fetch(`/api/proxy/download/status/${downloadTaskId.value}`)
-
-        // 检查HTTP状态
-        if (!statusResponse.ok) {
-          throw new Error(`服务器错误: ${statusResponse.status}`)
-        }
-
-        // 安全解析JSON
-        let status
-        try {
-          status = await statusResponse.json()
-          console.log('[DOWNLOAD] 状态响应:', status)  // 添加调试日志
-        } catch (jsonErr) {
-          throw new Error('服务器响应格式错误')
-        }
-
-        // 首先检查是否出错，如果有错误立即处理
-        if (status.status === 'error') {
-          const errorMsg = status.error || '下载失败，请稍后重试'
-          console.log('[DOWNLOAD] 检测到错误状态:', errorMsg)  // 添加调试日志
-          // 立即停止轮询
-          shouldContinuePolling = false
-          // 抛出错误，让外层 catch 处理
-          throw new Error(errorMsg)
-        }
-
-        if (status.status === 'completed') {
-          // 下载完成，停止轮询
-          shouldContinuePolling = false
-
-          // 保持当前进度，避免突然跳到100%
-          // downloadProgress.value = 100
-          const fileResponse = await fetch(`/api/proxy/download/file/${downloadTaskId.value}`)
-          const blob = await fileResponse.blob()
-          const url = window.URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = status.filename
-          link.click()
-          window.URL.revokeObjectURL(url)
-          ElMessage.success('下载完成！')
-          downloading.value = false
-          downloadProgress.value = 100  // 只在真正完成后才显示100%
-        } else {
-          // 下载中状态，继续轮询
-          // 平滑更新进度，避免突然跳到0
-          const newProgress = status.progress || 0
-          if (newProgress > 0) {  // 只有当新进度大于0时才更新
-            downloadProgress.value = newProgress
-          }
-          // 继续轮询
-          if (shouldContinuePolling) {
-            setTimeout(pollStatus, 1000)  // 减少轮询间隔到1秒，让进度更新更频繁
-          }
-        }
-      } catch (err) {
-        // 捕获轮询过程中的错误
-        console.error('[DOWNLOAD] 下载状态轮询错误:', err)
-        // 立即停止轮询
-        shouldContinuePolling = false
-        // 重新抛出错误，让外层 catch 处理
-        throw err
+      if (shouldContinuePolling) {
+        setTimeout(pollStatus, 1000)
       }
     }
+  } catch (err) {
+    console.error('[DOWNLOAD] 下载状态轮询错误:', err)
+    shouldContinuePolling = false
+    downloading.value = false
+    // 直接提示，不抛出！
+    ElMessage.error(err.message || '下载异常，请稍后重试')
+  }
+}
 
     pollStatus()
   } catch (err) {

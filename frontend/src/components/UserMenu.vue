@@ -50,16 +50,12 @@
             <el-dropdown-item disabled class="usage-item">
               <div class="py-1 text-xs text-gray-600">
                 <div class="flex justify-between">
-                  <span>今日下载:</span>
-                  <span :class="getUsageClass('download')">{{ getUsageText('download') }}</span>
+                  <span>今日解析剩余:</span>
+                  <span :class="getQuotaClass('parse')">{{ getQuotaText('parse') }}</span>
                 </div>
                 <div class="flex justify-between mt-1">
-                  <span>AI 总结:</span>
-                  <span :class="getUsageClass('summary')">{{ getUsageText('summary') }}</span>
-                </div>
-                <div class="flex justify-between mt-1">
-                  <span>AI 问答:</span>
-                  <span :class="getUsageClass('qa')">{{ getUsageText('qa') }}</span>
+                  <span>今日下载剩余:</span>
+                  <span :class="getQuotaClass('download')">{{ getQuotaText('download') }}</span>
                 </div>
               </div>
             </el-dropdown-item>
@@ -153,8 +149,8 @@
 
         <div class="text-xs text-gray-500">
           <p>权限说明：</p>
-          <p>• 游客: 1次/日（下载/总结/问答）</p>
-          <p>• 注册用户: 3次/日（下载/总结/问答）</p>
+          <p>• 游客: 1次/日（解析/下载）</p>
+          <p>• 注册用户: 3次/日（解析/下载）</p>
           <p>• 会员: 无限使用 + 高级功能</p>
         </div>
       </div>
@@ -317,26 +313,64 @@ const loadPaymentHistory = async () => {
   } finally { historyLoading.value = false }
 }
 
-// 获取使用次数
-const getUsageText = (type) => {
+// 获取剩余次数文本
+const getQuotaText = (type) => {
   refresh.value
+
+  // VIP用户无限
   if (auth.isPremium()) return '无限'
+
+  // 优先使用quota数据
+  const quota = auth.quota
+  if (quota) {
+    const remaining = quota[`${type}_remaining`]
+    if (remaining === '无限') return '无限'
+    if (typeof remaining === 'number') {
+      const limit = quota[`${type}_limit`] || (auth.getRole() === 'guest' ? 1 : 3)
+      return `${remaining}/${limit}`
+    }
+  }
+
+  // 降级：使用旧的usage数据
   const count = auth.usage?.[`${type}_count`] || 0
-  // 统一配置：游客1次，用户3次
   const limit = auth.getRole() === 'guest' ? 1 : 3
   return `${Math.max(0, limit - count)}/${limit}`
 }
 
-const getUsageClass = (type) => {
+const getQuotaClass = (type) => {
   refresh.value
+
+  // VIP用户紫色
   if (auth.isPremium()) return 'text-purple-600'
+
+  // 优先使用quota数据
+  const quota = auth.quota
+  if (quota) {
+    const remaining = quota[`${type}_remaining`]
+    if (remaining === '无限') return 'text-purple-600'
+    if (typeof remaining === 'number') {
+      if (remaining === 0) return 'text-red-600'
+      if (remaining === 1) return 'text-orange-500'
+      return 'text-green-600'
+    }
+  }
+
+  // 降级：使用旧的usage数据
   const count = auth.usage?.[`${type}_count`] || 0
-  // 统一配置：游客1次，用户3次
   const limit = auth.getRole() === 'guest' ? 1 : 3
   const rem = Math.max(0, limit - count)
   if (rem === 0) return 'text-red-600'
   if (rem === 1) return 'text-orange-500'
   return 'text-green-600'
+}
+
+// 获取使用次数（旧方法，保留兼容）
+const getUsageText = (type) => {
+  return getQuotaText(type)
+}
+
+const getUsageClass = (type) => {
+  return getQuotaClass(type)
 }
 
 // 格式化日期
@@ -356,6 +390,9 @@ onMounted(() => {
   removeListener = auth.addListener(() => {
     refresh.value++ // 只要 auth 变了，就刷新视图
   })
+
+  // 刷新剩余次数
+  auth.refreshQuota()
 
   // 原有事件监听
   const a = () => showLoginDialog.value = true

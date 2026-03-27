@@ -3,9 +3,12 @@
  * 负责 Token 存储、用户状态管理、登录登出逻辑
  */
 
+import { getFingerprint } from '../utils/fingerprint'
+
 const TOKEN_KEY = 'fetchvid_token'
 const USER_KEY = 'fetchvid_user'
 const USAGE_KEY = 'fetchvid_usage'
+const QUOTA_KEY = 'fetchvid_quota'  // 新增：剩余次数缓存
 
 /**
  * 认证管理类
@@ -15,6 +18,7 @@ class AuthManager {
     this.token = this.getToken()
     this.user = this.getUser()
     this.usage = this.getUsage()
+    this.quota = this.getQuota()  // 新增：获取剩余次数
     this.listeners = new Set()
   }
 
@@ -68,6 +72,22 @@ class AuthManager {
   }
 
   /**
+   * 获取剩余次数配额
+   */
+  getQuota() {
+    const quotaStr = localStorage.getItem(QUOTA_KEY)
+    return quotaStr ? JSON.parse(quotaStr) : null
+  }
+
+  /**
+   * 存储剩余次数配额
+   */
+  setQuota(quota) {
+    localStorage.setItem(QUOTA_KEY, JSON.stringify(quota))
+    this.quota = quota
+  }
+
+  /**
    * 登录
    */
   async login(email, password) {
@@ -86,6 +106,7 @@ class AuthManager {
         this.setToken(data.token)
         this.setUser(data.user)
         this.setUsage(data.usage)
+        this.setQuota(data.quota || null)  // 新增：设置配额
         return { success: true, user: data.user }
       } else {
         return { success: false, error: data.error || '登录失败' }
@@ -127,9 +148,11 @@ class AuthManager {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     localStorage.removeItem(USAGE_KEY)
+    localStorage.removeItem(QUOTA_KEY)  // 新增：清除配额
     this.token = null
     this.user = null
     this.usage = null
+    this.quota = null
     this._notifyListeners()
   }
 
@@ -208,6 +231,41 @@ class AuthManager {
       return false
     } catch (error) {
       console.error('刷新使用情况失败:', error)
+      return false
+    }
+  }
+
+  /**
+   * 刷新剩余次数配额（支持游客和登录用户）
+   */
+  async refreshQuota() {
+    try {
+      const fingerprint = getFingerprint()
+      const headers = {
+        'X-Fingerprint': fingerprint
+      }
+
+      // 如果已登录，添加token
+      if (this.token) {
+        headers['Authorization'] = `Bearer ${this.token}`
+      }
+
+      const response = await fetch('/api/quota/remaining', {
+        method: 'GET',
+        headers
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          this.setQuota(result.data)
+          this._notifyListeners()
+          return true
+        }
+      }
+      return false
+    } catch (error) {
+      console.error('刷新剩余次数失败:', error)
       return false
     }
   }

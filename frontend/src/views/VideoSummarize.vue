@@ -403,6 +403,8 @@
 import { ref, reactive, computed, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import UserMenu from '../components/UserMenu.vue'
+import auth from '../auth/auth'
+import { getFingerprint } from '../utils/fingerprint'
 
 const videoUrl = ref('')
 const processing = ref(false)
@@ -508,6 +510,20 @@ const checkAndSummarize = async () => {
     return
   }
 
+  // 检查剩余次数（前端预检查）
+  const quota = auth.quota
+  if (quota && typeof quota.parse_remaining === 'number' && quota.parse_remaining <= 0) {
+    const role = auth.getRole()
+    if (role === 'guest') {
+      ElMessage.warning('今日解析次数已用完，注册后每日3次')
+      window.dispatchEvent(new CustomEvent('auth:login-required'))
+    } else {
+      ElMessage.warning('今日解析次数已用完，开通VIP无限使用')
+      window.dispatchEvent(new CustomEvent('auth:upgrade-required'))
+    }
+    return
+  }
+
   processing.value = true
   processingProgress.value = 0
   error.value = ''
@@ -524,10 +540,23 @@ const checkAndSummarize = async () => {
   }, 1000)
 
   try {
+    // 构建请求头（包含fingerprint和token）
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    const fingerprint = getFingerprint()
+    if (fingerprint) {
+      headers['X-Fingerprint'] = fingerprint
+    }
+    const token = auth.getToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     // 先解析视频获取基本信息
     const parseResponse = await fetch('/api/parse', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({ url })
     })
 
@@ -546,7 +575,7 @@ const checkAndSummarize = async () => {
     // 使用流式API直接获取总结结果
     const streamResponse = await fetch('/api/ai/summarize/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
         url,
         title: videoInfo.title,
@@ -591,6 +620,9 @@ const checkAndSummarize = async () => {
               isStreaming.value = false
               if (timerInterval.value) clearInterval(timerInterval.value)
               ElMessage.success('AI总结完成！')
+
+              // 刷新剩余次数
+              auth.refreshQuota()
               return
             } else if (data.type === 'error') {
               throw new Error(data.message || '生成失败')
@@ -685,9 +717,22 @@ const sendChat = async () => {
   chatLoading.value = true
 
   try {
+    // 构建请求头
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    const fingerprint = getFingerprint()
+    if (fingerprint) {
+      headers['X-Fingerprint'] = fingerprint
+    }
+    const token = auth.getToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
         question,
         url: videoUrl.value,
@@ -819,9 +864,22 @@ const checkSubtitle = async () => {
   if (!videoUrl.value || !subtitles.value.length) {
     // 如果没有字幕，尝试获取
     try {
+      // 构建请求头
+      const headers = {
+        'Content-Type': 'application/json'
+      }
+      const fingerprint = getFingerprint()
+      if (fingerprint) {
+        headers['X-Fingerprint'] = fingerprint
+      }
+      const token = auth.getToken()
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/ai/subtitle/raw', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({
           url: videoUrl.value,
           use_asr: true

@@ -15,6 +15,7 @@ import yt_dlp
 import uuid
 import threading
 import time
+import hashlib
 
 # AI功能模块（新增）
 try:
@@ -31,6 +32,14 @@ try:
     AUTH_ENABLED = True
 except ImportError as e:
     print(f"[APP] 认证模块导入失败: {e}", file=sys.stderr)
+
+# 次数管理模块（新增）
+QUOTA_ENABLED = False
+try:
+    from auth.quota_manager import quota_manager
+    QUOTA_ENABLED = True
+except ImportError as e:
+    print(f"[APP] 次数管理模块导入失败: {e}", file=sys.stderr)
 
 # 支付模块（新增，可选）
 PAYMENT_ENABLED = False
@@ -51,13 +60,17 @@ CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Fingerprint", "X-Request-ID"],
         "supports_credentials": True
     }
 })
 
 # 全局下载任务存储
 download_tasks = {}
+
+# B站下载防限流机制 - 记录每个fingerprint的最后下载时间
+bilibili_last_download = {}
+BILIBILI_DOWNLOAD_INTERVAL = 5  # 同一用户两次B站下载最小间隔（秒）
 
 
 def check_ffmpeg_available():
@@ -99,6 +112,117 @@ def get_cookies_dir():
     return cookies_dir
 
 
+def get_cache_dir():
+    """确保缓存目录存在"""
+    cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'video_cache')
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
+def extract_video_id(url, platform):
+    """从视频URL中提取视频ID"""
+    import re
+    try:
+        if platform == 'bilibili':
+            # 匹配 BV 号
+            bv_match = re.search(r'BV[\w]+', url)
+            if bv_match:
+                return bv_match.group(0)
+            # 匹配数字ID
+            id_match = re.search(r'bilibili\.com/video/(\d+)', url)
+            if id_match:
+                return id_match.group(1)
+        elif platform == 'youtube':
+            # YouTube ID
+            yt_match = re.search(r'(?:v=|youtu\.be/)([\w-]+)', url)
+            if yt_match:
+                return yt_match.group(1)
+        elif platform == 'douyin':
+            # 抖音ID
+            dy_match = re.search(r'/video/(\d+)', url)
+            if dy_match:
+                return dy_match.group(1)
+        # 其他平台可以使用URL的hash作为ID
+        return hashlib.md5(url.encode()).hexdigest()[:16]
+    except Exception:
+        return hashlib.md5(url.encode()).hexdigest()[:16]
+
+
+def get_cached_file(video_id):
+    """检查视频缓存是否存在并有效"""
+    try:
+        cache_dir = get_cache_dir()
+        cache_info_file = os.path.join(cache_dir, f'{video_id}.json')
+
+        if not os.path.exists(cache_info_file):
+            return None
+
+        # 读取缓存信息
+        with open(cache_info_file, 'r', encoding='utf-8') as f:
+            import json
+            cache_info = json.load(f)
+
+        # 检查缓存是否过期（24小时）
+        import time
+        cache_time = cache_info.get('cached_at', 0)
+        if time.time() - cache_time > 86400:  # 24小时
+            print(f"[CACHE] Cache expired for {video_id}", file=sys.stderr)
+            return None
+
+        # 检查文件是否存在
+        cached_file = cache_info.get('file_path')
+        if cached_file and os.path.exists(cached_file):
+            file_size = os.path.getsize(cached_file)
+            if file_size >= 1000:  # 至少1KB
+                print(f"[CACHE] Found cached file: {cached_file}, size: {file_size}", file=sys.stderr)
+                return {
+                    'file_path': cached_file,
+                    'filename': cache_info.get('filename', 'video.mp4'),
+                    'file_size': file_size,
+                    'cached_at': cache_time
+                }
+
+        return None
+    except Exception as e:
+        print(f"[CACHE] Error checking cache: {e}", file=sys.stderr)
+        return None
+
+
+def save_to_cache(video_id, source_file, filename):
+    """将下载的文件保存到缓存"""
+    try:
+        cache_dir = get_cache_dir()
+        import time
+        import shutil
+
+        # 生成缓存文件名
+        cached_filename = f'{video_id}.mp4'
+        cached_file = os.path.join(cache_dir, cached_filename)
+
+        # 复制文件到缓存目录
+        shutil.copy2(source_file, cached_file)
+
+        # 保存缓存元数据
+        cache_info = {
+            'video_id': video_id,
+            'file_path': cached_file,
+            'filename': filename,
+            'cached_at': time.time(),
+            'file_size': os.path.getsize(cached_file)
+        }
+
+        cache_info_file = os.path.join(cache_dir, f'{video_id}.json')
+        with open(cache_info_file, 'w', encoding='utf-8') as f:
+            import json
+            json.dump(cache_info, f, ensure_ascii=False, indent=2)
+
+        print(f"[CACHE] Saved to cache: {cached_file}", file=sys.stderr)
+        return True
+    except Exception as e:
+        print(f"[CACHE] Error saving to cache: {e}", file=sys.stderr)
+        return False
+
+
 @app.route('/')
 def index():
     """前端页面入口"""
@@ -131,8 +255,39 @@ def parse_video():
         if not url:
             return jsonify({'success': False, 'message': '请输入视频链接'}), 400
 
-        # 权限检查（可选：解析不算入次数限制）
-        # 解析本身不消耗次数，只在下载时统计
+        # 权限检查：检查解析次数限制（不扣次，只在AI总结成功后扣次）
+        if QUOTA_ENABLED:
+            try:
+                # 获取用户身份
+                auth_header = request.headers.get('Authorization')
+                user_id = None
+
+                if auth_header and auth_header.startswith('Bearer '):
+                    token = auth_header.split(' ')[1]
+                    from auth.auth import AuthManager
+                    payload = AuthManager.decode_token(token)
+                    if payload:
+                        user_id = payload.get('user_id')
+
+                # 获取fingerprint
+                fingerprint = request.headers.get('X-Fingerprint')
+
+                # 检查解析次数（仅检查，不扣次）
+                allowed, message, info = quota_manager.check_quota(user_id, fingerprint, 'parse')
+
+                if not allowed:
+                    return jsonify({
+                        'success': False,
+                        'message': message,
+                        'code': 'QUOTA_EXCEEDED',
+                        'info': info,
+                        'require_login': info.get('role') == 'guest',
+                        'user_role': info.get('role', 'guest')
+                    }), 403
+
+            except Exception as e:
+                print(f"[PARSE] 权限检查失败: {e}", file=__import__('sys').stderr)
+                # 权限检查失败时，继续执行（降级处理）
 
         # 快速解析：使用 extract_flat 获取基本信息
         fast_parse = data.get('fast', False)
@@ -319,29 +474,44 @@ def proxy_download():
         if not video_url:
             return jsonify({'success': False, 'message': '缺少视频链接'}), 400
 
-        # 权限检查
+        # 权限检查 - 统一使用quota_manager
         user_id = None
+        fingerprint = None
+        request_id = str(uuid.uuid4())
+
+        # 获取用户身份
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
-            payload = auth.auth.AuthManager.decode_token(token)
-            if payload:
-                user_id = payload.get('user_id')
+            try:
+                from auth.auth import AuthManager
+                payload = AuthManager.decode_token(token)
+                if payload:
+                    user_id = payload.get('user_id')
+            except Exception:
+                pass
 
-        # 检查下载次数限制
-        if user_id:
-            allowed, message, info = auth.auth.check_rate_limit(user_id, 'download')
-            if not allowed:
-                return jsonify({
-                    'success': False,
-                    'message': message,
-                    'code': 'RATE_LIMIT_EXCEEDED',
-                    'info': info
-                }), 403
-        else:
-            # 游客模式 - 使用 session 或 IP 限制
-            # 这里简化处理，允许游客使用
-            pass
+        # 获取游客指纹
+        fingerprint = request.headers.get('X-Fingerprint')
+
+        print(f"[DOWNLOAD] 收到请求 - fingerprint: {fingerprint}, user_id: {user_id}", file=sys.stderr)
+
+        # 检查下载次数限制（支持游客和登录用户）
+        if QUOTA_ENABLED:
+            try:
+                allowed, message, info = quota_manager.check_quota(user_id, fingerprint, 'download')
+                if not allowed:
+                    return jsonify({
+                        'success': False,
+                        'message': message,
+                        'code': 'QUOTA_EXCEEDED',
+                        'info': info,
+                        'require_login': info.get('role') == 'guest',
+                        'user_role': info.get('role', 'guest')
+                    }), 403
+            except Exception as e:
+                print(f"[DOWNLOAD] 权限检查失败: {e}", file=__import__('sys').stderr)
+                # 权限检查失败时，继续执行（降级处理）
 
         # 清理文件名
         def is_safe_char(c):
@@ -373,10 +543,13 @@ def proxy_download():
             'output_path': output_path,
             'created_at': time.time(),
             'user_id': user_id,  # 记录用户ID
+            'fingerprint': fingerprint,  # 记录游客指纹
+            'request_id': request_id,  # 记录请求ID用于幂等检查
             'video_url': video_url
         }
 
         print(f"[DOWNLOAD-{task_id[:8]}] Task created for: {video_url[:50]}", file=sys.stderr)
+        print(f"[DOWNLOAD-{task_id[:8]}] User info - user_id: {user_id}, fingerprint: {fingerprint}, request_id: {request_id}", file=sys.stderr)
 
         # 启动后台下载任务
         def download_task():
@@ -384,6 +557,61 @@ def proxy_download():
                 download_tasks[task_id]['status'] = 'downloading'
 
                 platform = VideoParser.identify_platform(video_url)
+
+                # ========== 检查缓存 ==========
+                video_id = extract_video_id(video_url, platform)
+                print(f"[DOWNLOAD-{task_id[:8]}] Video ID: {video_id}, Platform: {platform}", file=sys.stderr)
+
+                cached_data = get_cached_file(video_id)
+                if cached_data:
+                    print(f"[DOWNLOAD-{task_id[:8]}] Using cached file", file=sys.stderr)
+
+                    # 从缓存复制文件
+                    import shutil
+                    shutil.copy2(cached_data['file_path'], output_path)
+
+                    file_size = os.path.getsize(output_path)
+                    download_tasks[task_id]['status'] = 'completed'
+                    download_tasks[task_id]['file_size'] = file_size
+                    download_tasks[task_id]['progress'] = 100
+                    download_tasks[task_id]['actual_file_path'] = output_path
+                    download_tasks[task_id]['from_cache'] = True  # 标记来自缓存
+
+                    # 增加下载次数（缓存也算下载）
+                    task_user_id = download_tasks[task_id].get('user_id')
+                    task_fingerprint = download_tasks[task_id].get('fingerprint')
+                    task_request_id = download_tasks[task_id].get('request_id')
+
+                    if QUOTA_ENABLED and (task_user_id is not None or task_fingerprint):
+                        try:
+                            quota_manager.consume_quota(task_user_id, task_fingerprint, 'download', task_request_id)
+                            print(f"[DOWNLOAD-{task_id[:8]}] ✓ Cache hit - quota consumed", file=sys.stderr)
+                        except Exception as e:
+                            print(f"[DOWNLOAD-{task_id[:8]}] 消耗次数失败: {e}", file=__import__('sys').stderr)
+
+                    print(f"[DOWNLOAD-{task_id[:8]}] ✓ Served from cache: {file_size} bytes", file=sys.stderr)
+                    return  # 缓存命中，直接返回
+
+                # ========== 缓存未命中，继续正常下载流程 ==========
+                print(f"[DOWNLOAD-{task_id[:8]}] Cache miss, starting download", file=sys.stderr)
+
+                # B站防限流：检查上次下载时间
+                # 使用 task 中存储的值，避免作用域问题
+                task_user_id = download_tasks[task_id].get('user_id')
+                task_fingerprint = download_tasks[task_id].get('fingerprint')
+
+                if platform == 'bilibili':
+                    user_key = task_user_id if task_user_id else (task_fingerprint if task_fingerprint else 'anonymous')
+                    current_time = time.time()
+
+                    if user_key in bilibili_last_download:
+                        time_since_last = current_time - bilibili_last_download[user_key]
+                        if time_since_last < BILIBILI_DOWNLOAD_INTERVAL:
+                            wait_time = BILIBILI_DOWNLOAD_INTERVAL - time_since_last
+                            print(f"[DOWNLOAD-{task_id[:8]}] B站防限流：等待 {wait_time:.1f} 秒", file=sys.stderr)
+                            time.sleep(wait_time)
+
+                    bilibili_last_download[user_key] = current_time
 
                 # ========== 抖音专用处理：使用专用下载器 ==========
                 if platform == 'douyin':
@@ -454,13 +682,16 @@ def proxy_download():
                 if platform == 'bilibili':
                     # B站使用DASH格式，音视频分离
                     # 添加B站专用的重试和超时配置
+                    print(f"[DOWNLOAD-{task_id[:8]}] 配置B站下载参数", file=sys.stderr)
+
                     ydl_opts.update({
                         'retries': 10,  # 重试次数
                         'file_access_retries': 10,
                         'fragment_retries': 10,  # 分片重试次数
-                        'skip_unavailable_fragments': False,  # 不跳过失败片段
-                        'ignoreerrors': False,  # 遇到错误停止，这样可以知道真正的问题
+                        'skip_unavailable_fragments': True,  # 跳过失败片段，提高成功率
+                        'ignoreerrors': False,  # 遇到错误停止，以便发现问题
                         'nocheckcertificate': True,  # 跳过证书检查
+                        'extract_flat': False,  # 完整提取信息
                         # B站专用请求头（避免HTTP 400错误）
                         'http_headers': {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -474,15 +705,16 @@ def proxy_download():
                             'Sec-Fetch-Site': 'same-site',
                             'Origin': 'https://www.bilibili.com',
                         },
-                        # DASH配置
+                        # DASH配置 - 简化格式选择以提高成功率
                         'extractor_args': {
                             'bilibili': {
                                 'prefer_formats': 'dash-flv,_dash-mp4,aac-flv,mp4-flv'
                             }
                         },
                         # 添加额外的网络配置
-                        'socket_timeout': 60,  # 增加超时时间到60秒
-                        'concurrent_fragment_downloads': 4,  # 增加并发下载数
+                        'socket_timeout': 120,  # 增加超时时间到120秒
+                        'concurrent_fragment_downloads': 2,  # 减少并发数，避免被限流
+                        'buffersize': 1024 * 16,  # 增加缓冲区大小
                     })
 
                     # 根据用户选择的格式ID设置下载格式
@@ -634,7 +866,9 @@ def proxy_download():
                 # 列出目录中所有以 task_id 开头的文件
                 if os.path.exists(download_dir):
                     all_files = os.listdir(download_dir)
-                    matching_files = [f for f in all_files if f.startswith(base_name)]
+                    # 匹配以 task_id 开头的文件（包括临时文件和分片文件）
+                    matching_files = [f for f in all_files if f.startswith(base_name) and not f.endswith('.temp') and not f.endswith('.part')]
+                    print(f"[DOWNLOAD-{task_id[:8]}] All files in dir: {all_files}", file=sys.stderr)
                     print(f"[DOWNLOAD-{task_id[:8]}] Matching files: {matching_files}", file=sys.stderr)
 
                     if matching_files:
@@ -650,21 +884,45 @@ def proxy_download():
                             # 更新实际文件路径
                             download_tasks[task_id]['actual_file_path'] = actual_file
 
-                            # 增加用户下载次数
+                            # ========== 保存到缓存 ==========
+                            try:
+                                video_id = extract_video_id(video_url, platform)
+                                save_to_cache(video_id, actual_file, download_tasks[task_id]['filename'])
+                            except Exception as cache_err:
+                                print(f"[DOWNLOAD-{task_id[:8]}] Cache save failed: {cache_err}", file=sys.stderr)
+
+                            # 增加下载次数（支持游客和登录用户）
                             user_id = download_tasks[task_id].get('user_id')
-                            if user_id:
-                                db_manager.increment_usage(user_id, 'download')
-                                print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (counted for user {user_id})", file=sys.stderr)
+                            fingerprint = download_tasks[task_id].get('fingerprint')
+                            request_id = download_tasks[task_id].get('request_id')
+
+                            print(f"[DOWNLOAD-{task_id[:8]}] 准备扣次 - user_id: {user_id}, fingerprint: {fingerprint}, QUOTA_ENABLED: {QUOTA_ENABLED}", file=sys.stderr)
+
+                            if QUOTA_ENABLED and (user_id is not None or fingerprint):
+                                try:
+                                    quota_manager.consume_quota(user_id, fingerprint, 'download', request_id)
+                                    user_desc = f"user {user_id}" if user_id else f"guest {fingerprint[:8]}..."
+                                    print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (counted for {user_desc})", file=sys.stderr)
+                                except Exception as e:
+                                    print(f"[DOWNLOAD-{task_id[:8]}] 消耗次数失败: {e}", file=__import__('sys').stderr)
+                                    import traceback
+                                    traceback.print_exc(file=sys.stderr)
+                                    print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (count failed)", file=sys.stderr)
                             else:
-                                print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (guest mode)", file=sys.stderr)
+                                print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (guest mode - QUOTA_ENABLED: {QUOTA_ENABLED}, has_identity: {user_id is not None or fingerprint})", file=sys.stderr)
                         else:
                             download_tasks[task_id]['status'] = 'error'
                             download_tasks[task_id]['error'] = f'下载文件太小 ({file_size} bytes)'
                             print(f"[DOWNLOAD-{task_id[:8]}] ✗ File too small: {file_size} bytes", file=sys.stderr)
                     else:
                         download_tasks[task_id]['status'] = 'error'
-                        download_tasks[task_id]['error'] = '文件未创建，请检查视频是否可用或稍后重试'
-                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ No file created. All files in directory: {all_files}", file=sys.stderr)
+                        # 提供更详细的错误信息
+                        error_detail = f'未找到下载文件（task_id: {task_id}）'
+                        download_tasks[task_id]['error'] = f'下载失败：{error_detail}。可能是视频格式不支持或网络问题，请稍后重试'
+                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ No file created. task_id: {task_id}", file=sys.stderr)
+                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ All files in directory: {all_files}", file=sys.stderr)
+                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ Download directory: {download_dir}", file=sys.stderr)
+                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ Video URL: {video_url[:100]}", file=sys.stderr)
                 else:
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = '下载目录不存在'
@@ -673,35 +931,44 @@ def proxy_download():
             except yt_dlp.utils.DownloadError as e:
                 error_msg = str(e)
                 print(f"[DOWNLOAD-{task_id[:8]}] ✗ yt-dlp error: {error_msg}", file=sys.stderr)
+                print(f"[DOWNLOAD-{task_id[:8]}] ✗ Full error details", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
 
                 # 解析具体错误类型
-                if 'ffmpeg' in error_msg.lower() or 'ffmpeg' in error_msg:
+                if 'ffmpeg' in error_msg.lower() or 'ffmpeg' in error_msg or 'avconv' in error_msg.lower():
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = '视频需要合并组件，请安装ffmpeg或尝试其他视频'
-                elif 'Requested format is not available' in error_msg or 'no suitable format' in error_msg.lower():
+                elif 'Requested format is not available' in error_msg or 'no suitable format' in error_msg.lower() or 'N/A' in error_msg:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = '该视频格式暂不支持下载，请尝试其他平台视频'
+                    download_tasks[task_id]['error'] = '该视频格式暂不支持下载，请尝试其他清晰度'
                 elif 'HTTP Error 403' in error_msg:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = '视频访问被拒绝，可能需要登录'
+                    download_tasks[task_id]['error'] = '视频访问被拒绝（403），该视频可能需要登录或会员权限'
                 elif 'HTTP Error 404' in error_msg:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = '视频不存在或已被删除'
+                    download_tasks[task_id]['error'] = '视频不存在或已被删除（404）'
                 elif 'sign in' in error_msg.lower() or 'login' in error_msg.lower():
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = '该视频需要登录才能访问'
-                elif 'timed out' in error_msg.lower() or 'timeout' in error_msg.lower() or 'connection' in error_msg.lower():
+                elif 'timed out' in error_msg.lower() or 'timeout' in error_msg.lower():
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = '网络连接超时，请检查网络后重试'
                 elif 'bilivideo' in error_msg.lower():
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = 'B站CDN连接失败，请稍后重试'
-                elif 'JSONDecodeError' in error_msg or 'parse JSON' in error_msg or 'Failed to parse JSON' in error_msg:
+                elif 'JSONDecodeError' in error_msg or 'parse JSON' in error_msg or 'Failed to parse JSON' in error_msg or 'Expecting value' in error_msg:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = 'B站API解析失败，请稍后重试或尝试其他视频'
+                    download_tasks[task_id]['error'] = 'B站API返回异常，可能是网络波动或限流，请稍后重试'
+                elif 'Unable to download' in error_msg or 'giving up' in error_msg.lower():
+                    download_tasks[task_id]['status'] = 'error'
+                    download_tasks[task_id]['error'] = '无法下载视频片段，请稍后重试或尝试其他视频'
+                elif 'region' in error_msg.lower() or 'area' in error_msg.lower():
+                    download_tasks[task_id]['status'] = 'error'
+                    download_tasks[task_id]['error'] = '该视频可能有地区限制，无法下载'
                 else:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = f'下载失败，请稍后重试'  # 简化错误消息，避免暴露技术细节
+                    download_tasks[task_id]['error'] = f'下载失败: {error_msg[:100]}'  # 显示部分错误信息
 
             except Exception as e:
                 error_msg = str(e)

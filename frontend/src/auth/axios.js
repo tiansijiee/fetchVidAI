@@ -6,6 +6,14 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import auth from './auth'
+import { getFingerprint } from '../utils/fingerprint'
+
+/**
+ * 生成请求ID（用于幂等检查）
+ */
+function generateRequestId() {
+  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+}
 
 /**
  * 创建 Axios 实例
@@ -20,14 +28,25 @@ const api = axios.create({
 
 /**
  * 请求拦截器
- * 自动添加 Authorization 头
+ * 自动添加 Authorization、X-Fingerprint、X-Request-ID 头
  */
 api.interceptors.request.use(
   (config) => {
+    // 添加Authorization头
     const token = auth.getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    // 添加X-Fingerprint头（所有请求）
+    const fingerprint = getFingerprint()
+    if (fingerprint) {
+      config.headers['X-Fingerprint'] = fingerprint
+    }
+
+    // 添加X-Request-ID头（用于幂等检查）
+    config.headers['X-Request-ID'] = generateRequestId()
+
     return config
   },
   (error) => {

@@ -688,6 +688,14 @@ def create_auth_routes(app):
             # 获取今日使用情况
             usage = db_manager.get_user_usage(user_info['id'])
 
+            # 获取剩余次数配额
+            quota = None
+            try:
+                from auth.quota_manager import quota_manager
+                quota = quota_manager.get_remaining(user_info['id'], None)
+            except Exception as e:
+                print(f"[AUTH] 获取剩余次数失败: {e}", file=__import__('sys').stderr)
+
             return jsonify({
                 'message': message,
                 'token': token,
@@ -697,7 +705,8 @@ def create_auth_routes(app):
                     'role': user_info['role'],
                     'membership_expire': user_info['membership_expire']
                 },
-                'usage': usage
+                'usage': usage,
+                'quota': quota  # 新增：返回剩余次数
             }), 200
         else:
             return jsonify({'error': message}), 401
@@ -738,6 +747,41 @@ def create_auth_routes(app):
             'message': message,
             'info': info
         }), 200
+
+    @app.route('/api/quota/remaining', methods=['GET'])
+    def get_quota_remaining():
+        """获取剩余次数（支持游客和登录用户）"""
+        try:
+            # 导入quota_manager
+            from auth.quota_manager import quota_manager
+
+            # 获取用户身份
+            auth_header = request.headers.get('Authorization')
+            user_id = None
+
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                payload = AuthManager.decode_token(token)
+                if payload:
+                    user_id = payload.get('user_id')
+
+            # 获取fingerprint
+            fingerprint = request.headers.get('X-Fingerprint')
+
+            # 获取剩余次数
+            result = quota_manager.get_remaining(user_id, fingerprint)
+
+            return jsonify({
+                'success': True,
+                'data': result
+            }), 200
+
+        except Exception as e:
+            print(f"[QUOTA] 获取剩余次数失败: {e}", file=__import__('sys').stderr)
+            return jsonify({
+                'success': False,
+                'error': '获取剩余次数失败'
+            }), 500
 
 
 if __name__ == '__main__':

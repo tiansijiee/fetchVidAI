@@ -619,6 +619,43 @@ def summarize_video_char_stream():
         if client_subtitle_text:
             print(f"[AI] 客户端已提供字幕，长度: {len(client_subtitle_text)}字符，跳过字幕提取", file=sys.stderr)
 
+        # 权限检查：检查解析次数限制（流结束时才扣次）
+        try:
+            from auth.quota_manager import quota_manager
+            from auth.auth import AuthManager
+            import uuid
+
+            # 获取用户身份
+            auth_header = request.headers.get('Authorization')
+            user_id = None
+
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                payload = AuthManager.decode_token(token)
+                if payload:
+                    user_id = payload.get('user_id')
+
+            # 获取fingerprint和request_id
+            fingerprint = request.headers.get('X-Fingerprint')
+            request_id = request.headers.get('X-Request-ID') or str(uuid.uuid4())
+
+            # 检查解析次数
+            allowed, message, info = quota_manager.check_quota(user_id, fingerprint, 'parse')
+
+            if not allowed:
+                return jsonify({
+                    'success': False,
+                    'message': message,
+                    'code': 'QUOTA_EXCEEDED',
+                    'info': info,
+                    'require_login': info.get('role') == 'guest',
+                    'user_role': info.get('role', 'guest')
+                }), 403
+
+        except Exception as e:
+            print(f"[AI] 权限检查失败: {e}", file=__import__('sys').stderr)
+            # 权限检查失败时，继续执行（降级处理）
+
         def generate():
             """SSE生成器函数 - 逐字流式输出"""
             try:
@@ -908,9 +945,26 @@ def summarize_video_char_stream():
                 yield f"event: mindmap\ndata: {json.dumps({'text': mindmap_text}, ensure_ascii=False)}\n\n"
 
                 # ========== 步骤6: 发送配额信息 ==========
-                yield f"event: quota\ndata: {json.dumps({'remaining': 999, 'total': 1000}, ensure_ascii=False)}\n\n"
+                # 获取剩余次数
+                try:
+                    from auth.quota_manager import quota_manager
+                    remaining_info = quota_manager.get_remaining(user_id, fingerprint)
+                    yield f"event: quota\ndata: {json.dumps(remaining_info, ensure_ascii=False)}\n\n"
+                except Exception as e:
+                    print(f"[AI] 获取剩余次数失败: {e}", file=__import__('sys').stderr)
+                    yield f"event: quota\ndata: {json.dumps({'parse_remaining': '未知', 'download_remaining': '未知'}, ensure_ascii=False)}\n\n"
 
-                # ========== 步骤7: 发送完成事件 ==========
+                # ========== 步骤7: 扣减解析次数（只有成功完成才扣） ==========
+                try:
+                    from auth.quota_manager import quota_manager
+                    # 扣减解析次数（使用request_id保证幂等）
+                    quota_manager.consume_quota(user_id, fingerprint, 'parse', request_id)
+                    user_desc = f"user {user_id}" if user_id else f"guest {fingerprint[:8]}..."
+                    print(f"[AI] ✓ 扣减解析次数成功: {user_desc}", file=__import__('sys').stderr)
+                except Exception as e:
+                    print(f"[AI] 扣减解析次数失败: {e}", file=__import__('sys').stderr)
+
+                # ========== 步骤8: 发送完成事件 ==========
                 yield f"event: done\ndata: {json.dumps({'success': True}, ensure_ascii=False)}\n\n"
 
             except Exception as e:
