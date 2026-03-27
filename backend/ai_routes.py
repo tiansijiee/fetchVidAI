@@ -82,7 +82,7 @@ def _format_seconds_to_time(seconds: float) -> str:
         return f"{minutes:02d}:{secs:02d}"
 
 # 导入字幕提取器
-from subtitle_extractor import SubtitleExtractor
+from subtitle_extractor import SubtitleExtractor, traditional_to_simplified
 
 # 导入音频转写器（延迟导入，避免模块导入失败）
 ASR_AVAILABLE = True  # 始终设置为True，在运行时检查
@@ -119,6 +119,9 @@ except ImportError as e:
     print(f"[AI_ROUTES] AI模块导入失败: {e}", file=sys.stderr)
     AI_AVAILABLE = False
     summarizer = None
+
+# 导入认证模块
+from auth.auth import AuthManager, db_manager, check_rate_limit
 
 # 创建蓝图
 ai_bp = Blueprint('ai', __name__, url_prefix='/api/ai')
@@ -546,6 +549,9 @@ def get_raw_subtitle():
             end = seg.get('end', start + 3)
             text = seg.get('text', '')
 
+            # 应用繁简转换
+            text = traditional_to_simplified(text)
+
             # 计算时间字符串
             time_str = _format_seconds_to_time(start)
 
@@ -643,28 +649,32 @@ def summarize_video_char_stream():
                         source = 'subtitle'
                         print(f"[AI] ✓ 字幕提取成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条, 耗时: {time.time()-start_time:.2f}s", file=sys.stderr)
 
-                    # 优先级3: ASR兜底（如果字幕提取失败且允许ASR）
-                    if not subtitle_text and (subtitle_result.get('can_fallback_to_asr') or use_asr):
-                        print("[AI] 字幕提取失败，启用ASR语音识别兜底...", file=sys.stderr)
+                    # 优先级3: ASR兜底（如果字幕提取失败）
+                    # 只要没有字幕文本，就尝试ASR，不再检查 can_fallback_to_asr 标志
+                    if not subtitle_text:
+                        print("[AI] 字幕提取失败，尝试ASR语音识别...", file=sys.stderr)
 
-                    AudioTranscriber = get_audio_transcriber()
-                    if AudioTranscriber and AudioTranscriber.check_ffmpeg() and AudioTranscriber.check_whisper():
-                        print("[AI] 开始ASR转写...", file=sys.stderr)
-                        asr_result = AudioTranscriber.transcribe_from_url(url, model_size='tiny')
+                        AudioTranscriber = get_audio_transcriber()
+                        if AudioTranscriber and AudioTranscriber.check_ffmpeg() and AudioTranscriber.check_whisper():
+                            print("[AI] 开始ASR转写...", file=sys.stderr)
+                            # 发送进度事件
+                            yield f"data: {json.dumps({'type': 'progress', 'message': '正在进行语音识别(ASR)，这可能需要1-2分钟...'}, ensure_ascii=False)}\n\n"
 
-                        if asr_result.get('success'):
-                            subtitle_text = asr_result.get('full_text', '')
-                            subtitle_segments = asr_result.get('segments') or asr_result.get('subtitles') or []
-                            source = 'asr'
-                            print(f"[AI] ✓ ASR转写成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条", file=sys.stderr)
+                            asr_result = AudioTranscriber.transcribe_from_url(url, model_size='tiny')
+
+                            if asr_result.get('success'):
+                                subtitle_text = asr_result.get('full_text', '')
+                                subtitle_segments = asr_result.get('segments') or asr_result.get('subtitles') or []
+                                source = 'asr'
+                                print(f"[AI] ✓ ASR转写成功! 长度: {len(subtitle_text)}字符, 片段: {len(subtitle_segments)}条", file=sys.stderr)
+                            else:
+                                print(f"[AI] ✗ ASR转写失败: {asr_result.get('message', 'Unknown error')}", file=sys.stderr)
                         else:
-                            print(f"[AI] ✗ ASR转写失败: {asr_result.get('message', 'Unknown error')}", file=sys.stderr)
-                    else:
-                        print("[AI] ✗ ASR不可用（缺少ffmpeg或whisper）", file=sys.stderr)
+                            print("[AI] ✗ ASR不可用（缺少ffmpeg或whisper）", file=sys.stderr)
 
                 # 检查是否有字幕
                 if not subtitle_text:
-                    yield f"event: error\ndata: {json.dumps({'message': '无法获取视频字幕或语音转写失败，请尝试其他有字幕的视频'}, ensure_ascii=False)}\n\n"
+                    yield f"event: error\ndata: {json.dumps({'message': '无法获取视频字幕。建议：1) 尝试B站带字幕的视频 2) 安装ffmpeg和faster-whisper启用语音识别'}, ensure_ascii=False)}\n\n"
                     return
 
                 # ========== 步骤2: 发送字幕事件 ==========
@@ -750,6 +760,9 @@ def summarize_video_char_stream():
                     end = seg.get('end', start + 3)
                     text = seg.get('text', '')
 
+                    # 应用繁简转换
+                    text = traditional_to_simplified(text)
+
                     # 计算时间字符串
                     time_str = _format_seconds_to_time(start)
 
@@ -761,6 +774,9 @@ def summarize_video_char_stream():
                         'start': start,
                         'end': end
                     })
+
+                # 对full_text也应用繁简转换
+                subtitle_text = traditional_to_simplified(subtitle_text)
 
                 yield f"event: subtitle\ndata: {json.dumps({'segments': subtitle_segments, 'subtitles': subtitles_compatible, 'text': subtitle_text, 'length': len(subtitle_text)}, ensure_ascii=False)}\n\n"
 
@@ -830,15 +846,17 @@ def summarize_video_char_stream():
                     stream=True
                 )
 
-                # 逐token发送 - 直接发送纯文本token
+                # 逐token发送 - 按字符拆分实现平滑打字机效果
                 full_content = ""
                 for chunk in stream:
                     if chunk.choices and chunk.choices[0].delta.content:
                         token = chunk.choices[0].delta.content
                         full_content += token
 
-                        # 逐token发送summary事件 - 直接发送token文本
-                        yield f"event: summary\ndata: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        # 将token按字符拆分（中文按字，英文按字符）
+                        for char in token:
+                            # 逐字符发送summary事件
+                            yield f"event: summary\ndata: {json.dumps({'token': char}, ensure_ascii=False)}\n\n"
 
                 print(f"[AI] 流式完成，总长度: {len(full_content)}", file=sys.stderr)
 

@@ -23,21 +23,11 @@
             <router-link to="/summarize" class="nav-link">AI总结</router-link>
           </nav>
 
-          <!-- VIP入口 -->
+          <!-- VIP入口 & 用户菜单 -->
           <div class="flex items-center gap-3">
-            <!-- 免费额度提示 -->
-            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-              <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-              </svg>
-              <span class="text-xs font-medium text-amber-700">今日免费: 5次</span>
-            </div>
-            <button class="btn-gradient-ai flex items-center gap-2">
-              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
-              </svg>
-              <span class="hidden sm:inline">开通VIP</span>
-            </button>
+            <!-- 用户菜单组件 -->
+            <UserMenu />
+
             <!-- 移动端菜单按钮 -->
             <button class="md:hidden p-2" @click="mobileMenuOpen = !mobileMenuOpen">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -556,7 +546,7 @@
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                       </svg>
-                      {{ mindmapDownloadFormat === 'png' ? 'PNG' : 'MD' }}
+                      {{ mindmapDownloadFormat === 'svg' ? 'SVG' : 'MD' }}
                     </button>
                     <button
                       @click="downloadMindmap(mindmapDownloadFormat)"
@@ -565,7 +555,7 @@
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                       </svg>
-                      下载{{ mindmapDownloadFormat === 'png' ? 'PNG' : 'MD' }}
+                      下载{{ mindmapDownloadFormat === 'svg' ? 'SVG' : 'MD' }}
                     </button>
                   </div>
                 </div>
@@ -790,7 +780,12 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Transformer } from 'markmap-lib'
 import { Markmap } from 'markmap-view'
+import UserMenu from '../components/UserMenu.vue'
+import auth from '../auth/auth'
 
+// 🔥 加在这里：强制刷新次数显示
+const triggerUpdate = ref(0)
+let removeAuthListener = null
 const videoUrl = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -831,7 +826,7 @@ const subtitleFormat = ref('srt') // srt 或 txt
 // 思维导图相关状态
 const mindmapFullscreen = ref(false)
 const mindmapViewMode = ref('interactive') // 'interactive' 或 'markdown'
-const mindmapDownloadFormat = ref('png') // 'png' 或 'md'，默认PNG
+const mindmapDownloadFormat = ref('svg') // 'png' 或 'md'，默认PNG
 const mindmapSvg = ref(null)
 const markmapInstance = ref(null)
 
@@ -861,6 +856,12 @@ const selectedFormatData = computed(() => {
   return videoData.value.formats.find(f => f.format_id === selectedFormat.value)
 })
 
+onMounted(() => {
+  // 🔥 加这一段：auth 变化自动刷新次数
+  removeAuthListener = auth.addListener(() => {
+    triggerUpdate.value++
+  })
+})
 // 方法
 const getThumbnailUrl = (url) => {
   if (!url) return ''
@@ -1001,7 +1002,7 @@ const downloadSubtitle = (format = 'srt') => {
   let content = ''
   const filename = `${videoData.value?.title || 'subtitle'}.${format}`
 
-  if (format === 'srt') {
+  if (format === 'st') {
     // SRT格式
     aiSubtitles.value.forEach((sub, index) => {
       content += `${index + 1}\n`
@@ -1040,7 +1041,7 @@ const downloadMindmap = async (format = 'md') => {
   const filename = `${videoData.value?.title || 'mindmap'}.${format}`
 
   if (format === 'md') {
-    // 下载Markdown格式
+    // MD 下载（保持不变）
     const blob = new Blob([aiMindmap.value], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -1048,84 +1049,30 @@ const downloadMindmap = async (format = 'md') => {
     link.download = filename
     link.click()
     URL.revokeObjectURL(url)
-
     ElMessage.success('思维导图已下载为 MD 格式')
-  } else if (format === 'png') {
-    // 下载PNG格式
+  } 
+  else if (format === 'svg') {
     if (!mindmapSvg.value) {
       ElMessage.warning('思维导图未渲染完成，请稍后再试')
       return
     }
 
     try {
-      // 获取SVG元素
-      const svgElement = mindmapSvg.value
-
-      // 克隆SVG以避免修改原始元素
-      const svgClone = svgElement.cloneNode(true)
-
-      // 添加必要的命名空间和属性，避免CORS问题
-      if (!svgClone.getAttribute('xmlns')) {
-        svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      }
-      if (!svgClone.getAttribute('xmlns:xlink')) {
-        svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
-      }
-
-      // 序列化SVG
-      const svgData = new XMLSerializer().serializeToString(svgClone)
-
-      // 创建Canvas
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      const svgSize = svgElement.getBoundingClientRect()
-
-      // 设置Canvas尺寸（放大以获得更好的质量）
-      const scale = 2 // 2倍清晰度
-      canvas.width = svgSize.width * scale
-      canvas.height = svgSize.height * scale
-
-      // 创建图像对象，设置crossOrigin以避免CORS问题
-      const img = new Image()
-      img.crossOrigin = 'anonymous'  // 关键：设置跨域属性
-
+      // ✅ 方案：直接导出 SVG，让用户手动转 PNG（最稳妥，无跨域报错）
+      const svgData = new XMLSerializer().serializeToString(mindmapSvg.value)
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(svgBlob)
-
-      img.onload = () => {
-        // 绘制到Canvas
-        ctx.fillStyle = 'white'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
-        // 转换为PNG并下载
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const link = document.createElement('a')
-            link.href = URL.createObjectURL(blob)
-            link.download = filename
-            link.click()
-            URL.revokeObjectURL(link.href)
-            URL.revokeObjectURL(url)
-
-            ElMessage.success('思维导图已下载为 PNG 格式')
-          } else {
-            ElMessage.error('PNG生成失败，请重试或使用MD格式')
-            URL.revokeObjectURL(url)
-          }
-        }, 'image/png')
-      }
-
-      img.onerror = (error) => {
-        console.error('Image load error:', error)
-        ElMessage.error('PNG导出失败，请重试或使用MD格式')
-        URL.revokeObjectURL(url)
-      }
-
-      img.src = url
+      const svgUrl = URL.createObjectURL(svgBlob)
+      
+      const link = document.createElement('a')
+      link.href = svgUrl
+      link.download = filename.replace('.png', '.svg')
+      link.click()
+      URL.revokeObjectURL(svgUrl)
+      
+      ElMessage.success('已导出 SVG 格式，如需可在浏览器打开后右键「另存为 PNG」')
     } catch (error) {
-      console.error('PNG导出错误:', error)
-      ElMessage.error('PNG导出失败: ' + error.message)
+      console.error('导出错误:', error)
+      ElMessage.error('导出失败，请使用 MD 格式')
     }
   }
 }
@@ -1141,7 +1088,7 @@ const toggleMindmapFullscreen = () => {
 
 // 切换思维导图下载格式
 const toggleMindmapDownloadFormat = () => {
-  mindmapDownloadFormat.value = mindmapDownloadFormat.value === 'png' ? 'md' : 'png'
+  mindmapDownloadFormat.value = mindmapDownloadFormat.value === 'svg' ? 'md' : 'svg'
 }
 
 // ==============================================
@@ -1151,61 +1098,59 @@ const renderMindmap = async () => {
   if (!mindmapSvg.value || !aiMindmap.value) return
 
   try {
-    console.log('🚀 [VideoDownload] 开始渲染交互式思维导图')
-    console.log('📝 [VideoDownload] Markdown 长度:', aiMindmap.value.length)
-
+    console.log('🚀 开始渲染交互式思维导图')
     const transformer = new Transformer()
     const { root } = transformer.transform(aiMindmap.value)
 
-    console.log('✅ [VideoDownload] Markdown 转换成功')
-
-    // 清空旧内容
     if (markmapInstance.value) {
-      try {
-        markmapInstance.value.destroy()
-      } catch (e) {
-        console.error('清理旧实例失败:', e)
-      }
+      try { markmapInstance.value.destroy() } catch (e) {}
     }
 
-    // 创建新的 Markmap 实例
+    // Markmap配置说明：
+    // - fitRatio: 适配比例，值越大导图越大（0-1）
+    // - spacingHorizontal: 水平节点间距
+    // - spacingVertical: 垂直节点间距
+    // - initialExpandLevel: 初始展开层级（-1表示全部展开）
     markmapInstance.value = Markmap.create(mindmapSvg.value, {
       autoFit: true,
-      fitRatio: 0.75,  // 降低比例，让内容显示更大
-      duration: 500,  // 动画持续时间
-      center: true,  // 居中显示
-      zoom: true,  // 启用缩放功能
-      pan: true  // 启用平移功能
+      fitRatio: 0.95, // 增大到0.95，让导图占据更多空间
+      duration: 300,
+      zoom: true,
+      pan: true,
+      initialExpandLevel: -1, // 展开所有节点
+      spacingHorizontal: 120, // 水平间距
+      spacingVertical: 10, // 垂直间距
+      paddingX: 80 // 水平内边距
     })
 
     markmapInstance.value.setData(root)
 
-    // 多次延迟适配视图，确保完全渲染
-    setTimeout(() => {
-      markmapInstance.value?.fit()
-    }, 100)
-
-    setTimeout(() => {
-      markmapInstance.value?.fit()
-    }, 500)
-
-    // 最后再适配一次，确保放大显示
+    // 优化缩放和居中逻辑
     setTimeout(() => {
       if (markmapInstance.value) {
-        // 使用fit多次来达到放大效果
+        // 先适配容器
         markmapInstance.value.fit()
+
+        // 根据内容复杂度动态调整缩放
+        const contentLength = aiMindmap.value.length
+        const scaleMultiplier = contentLength > 3000 ? 1.5 : contentLength > 1500 ? 1.8 : 2.0
+        markmapInstance.value.rescale(scaleMultiplier)
+
+        // 使用 center() 方法居中显示
+        setTimeout(() => {
+          if (markmapInstance.value) {
+            markmapInstance.value.center()
+          }
+        }, 100)
       }
-    }, 1000)
+    }, 300)
 
-    console.log('🎉 [VideoDownload] 交互式思维导图渲染完成')
-
+    console.log('🎉 思维导图渲染完成')
   } catch (error) {
-    console.error('❌ [VideoDownload] 思维导图渲染失败:', error)
-    // 失败时自动切换到 Markdown 视图
+    console.error('❌ 思维导图渲染失败:', error)
     mindmapViewMode.value = 'markdown'
   }
 }
-
 // 监听思维导图数据变化
 watch(aiMindmap, (newVal) => {
   console.log('🔍 [VideoDownload] aiMindmap 变化')
@@ -1242,6 +1187,7 @@ watch(activeAITab, (newTab) => {
 
 // 组件卸载时清理
 onUnmounted(() => {
+   if (removeAuthListener) removeAuthListener()
   if (markmapInstance.value) {
     try {
       markmapInstance.value.destroy()
@@ -1318,11 +1264,48 @@ const startAIAnalysis = async () => {
   aiChatMessages.value = []
   activeAITab.value = 'summary'
 
+  // 设置超时控制（5分钟超时，ASR可能需要较长时间）
+  const AI_TIMEOUT = 300000 // 5分钟
+  let timeoutTimer = null
+  let lastDataTime = Date.now()
+  let hasReceivedData = false // 标记是否已收到数据
+
+  // 超时检查定时器：如果60秒内没有收到任何数据，提示用户
+  const NO_DATA_TIMEOUT = 60000 // 60秒无数据超时
+  let noDataTimer = setInterval(() => {
+    const timeSinceLastData = Date.now() - lastDataTime
+    if (timeSinceLastData > NO_DATA_TIMEOUT && aiInitialLoading.value && !hasReceivedData) {
+      clearInterval(noDataTimer)
+      aiInitialLoading.value = false
+      ElMessage.warning('AI分析响应较慢，请稍候或刷新重试')
+    }
+  }, 5000)
+
+  // 清理总超时定时器的函数
+  const clearTimeoutTimer = () => {
+    if (timeoutTimer) {
+      clearTimeout(timeoutTimer)
+      timeoutTimer = null
+    }
+    if (noDataTimer) {
+      clearInterval(noDataTimer)
+      noDataTimer = null
+    }
+  }
+
   try {
     // 如果已有字幕文本，直接传递给后端，避免重复提取
     const subtitleText = aiSubtitles.value.length > 0
       ? aiSubtitles.value.map(sub => sub.text).join('\n')
       : null
+
+    // 设置总超时
+    timeoutTimer = setTimeout(() => {
+      clearTimeoutTimer()
+      aiInitialLoading.value = false
+      aiStreaming.value = false
+      ElMessage.error('AI分析超时，请稍后重试或尝试其他视频')
+    }, AI_TIMEOUT)
 
     const response = await fetch('/api/ai/summarize/char-stream', {
       method: 'POST',
@@ -1331,7 +1314,7 @@ const startAIAnalysis = async () => {
         url: originalUrl.value,
         title: videoData.value?.title || '',
         description: videoData.value?.description || '',
-        subtitle_text: subtitleText  // 新增：传递已有字幕，大幅提升速度
+        subtitle_text: subtitleText
       })
     })
 
@@ -1348,6 +1331,9 @@ const startAIAnalysis = async () => {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
+
+      // 更新最后收到数据的时间
+      lastDataTime = Date.now()
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -1366,11 +1352,13 @@ const startAIAnalysis = async () => {
 
             // 使用从event:行捕获的事件类型
             if (currentEventType === 'subtitle') {
-              // 字幕事件 - 兼容多种格式
-              // 新格式: {segments: [{start, end, text}], subtitles: [{time, text, start, end}]}
-              // 旧格式: {segments: [{start, end, text}]}
-              // 兼容格式: {text: "完整字幕文本"}
+              // 收到第一个数据事件，清理总超时定时器
+              if (!hasReceivedData) {
+                hasReceivedData = true
+                clearTimeoutTimer()
+              }
 
+              // 字幕事件 - 兼容多种格式
               console.log('🎬 [VideoDownload] 收到字幕事件')
               console.log('📦 [VideoDownload] data:', data)
 
@@ -1378,12 +1366,10 @@ const startAIAnalysis = async () => {
               let subtitlesData = data.subtitles || data.segments || []
 
               console.log('📊 [VideoDownload] subtitlesData 长度:', subtitlesData.length)
-              console.log('📝 [VideoDownload] 第一条字幕:', subtitlesData[0])
 
               // 如果有 text 字段但没有 subtitles，解析 text
               if (!subtitlesData.length && data.text) {
                 const text = data.text || ''
-                console.log('📝 [VideoDownload] 使用 text 字段，长度:', text.length)
                 subtitlesData = text.split('\n').map((line, idx) => ({
                   time: `00:${String(Math.floor(idx * 3 / 60)).padStart(2, '0')}:${String((idx * 3) % 60).padStart(2, '0')}`,
                   text: line.trim()
@@ -1393,12 +1379,9 @@ const startAIAnalysis = async () => {
               // 确保每条字幕都有 time 和 text 字段
               if (subtitlesData.length > 0) {
                 const firstSub = subtitlesData[0]
-                console.log('🔍 [VideoDownload] 第一条字幕字段:', Object.keys(firstSub))
-                console.log('📝 [VideoDownload] 第一条字幕内容:', firstSub)
 
                 // 如果没有 time 字段但有 start 字段，生成 time
                 if (!firstSub.time && firstSub.start !== undefined) {
-                  console.log('🔧 [VideoDownload] 字幕缺少 time 字段，从 start 生成')
                   subtitlesData = subtitlesData.map(sub => {
                     const start = sub.start || 0
                     const minutes = Math.floor(start / 60)
@@ -1411,41 +1394,8 @@ const startAIAnalysis = async () => {
                 }
               }
 
-              console.log('✅ [VideoDownload] 处理后的字幕数据:', subtitlesData.slice(0, 3))
-
-              // 检查是否需要分割文本（如果只有1条记录但文本很长）
-              if (subtitlesData.length === 1 && data.text && data.text.length > 200) {
-                console.log('🔧 [VideoDownload] 检测到单条长字幕，需要分割处理')
-
-                // 按句子或段落分割长文本
-                const longText = data.text
-                const sentences = longText.split(/[。！？!?；\n]/).filter(s => s.trim().length > 5)
-
-                console.log('📊 [VideoDownload] 分割成', sentences.length, '个句子')
-
-                // 生成分段的字幕数据
-                subtitlesData = sentences.map((sentence, idx) => {
-                  const start = idx * 5  // 每句假设5秒
-                  const minutes = Math.floor(start / 60)
-                  const seconds = Math.floor(start % 60)
-                  const time = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-
-                  return {
-                    time: time,
-                    start_time: time,
-                    end_time: `${String(minutes).padStart(2, '0')}:${String((start + 5) % 60).padStart(2, '0')}`,
-                    start: start,
-                    end: start + 5,
-                    text: sentence.trim()
-                  }
-                })
-
-                console.log('✅ [VideoDownload] 分割后的字幕数据:', subtitlesData.slice(0, 3))
-              }
-
               // 确保 subtitlesData 包含必要的字段
               aiSubtitles.value = subtitlesData.map(seg => {
-                // 如果已经有 time 字段，直接使用
                 if (seg.time) {
                   return {
                     time: seg.time,
@@ -1454,7 +1404,6 @@ const startAIAnalysis = async () => {
                     text: seg.text || ''
                   }
                 }
-                // 如果没有 time 字段，从 start 生成
                 const start = seg.start || seg.start_time || 0
                 const end = seg.end || seg.end_time || (start + 3)
                 return {
@@ -1466,6 +1415,12 @@ const startAIAnalysis = async () => {
               }).filter(s => s.text)
             }
             else if (currentEventType === 'summary' && data.token) {
+              // 收到第一个数据事件，清理总超时定时器
+              if (!hasReceivedData) {
+                hasReceivedData = true
+                clearTimeoutTimer()
+              }
+
               // 隐藏初始加载，开始流式输出
               if (aiInitialLoading.value) {
                 aiInitialLoading.value = false
@@ -1481,6 +1436,12 @@ const startAIAnalysis = async () => {
               }
             }
             else if (currentEventType === 'mindmap') {
+              // 收到第一个数据事件，清理总超时定时器
+              if (!hasReceivedData) {
+                hasReceivedData = true
+                clearTimeoutTimer()
+              }
+
               // 思维导图事件 - 纯文本格式
               const mindmapText = data.text || data.content || ''
               if (mindmapText) {
@@ -1514,6 +1475,9 @@ const startAIAnalysis = async () => {
     aiStreaming.value = false
     aiInitialLoading.value = false
     ElMessage.error(err.message || 'AI分析失败')
+  } finally {
+    // 清理定时器
+    clearTimeoutTimer()
   }
 }
 
@@ -1525,6 +1489,7 @@ const downloadVideo = async () => {
 
   downloading.value = true
   downloadProgress.value = 0
+  let shouldContinuePolling = true  // 轮询控制标志
 
   try {
     ElMessage.info('开始下载，请稍候...')
@@ -1540,19 +1505,61 @@ const downloadVideo = async () => {
     })
 
     const startData = await startResponse.json()
-    if (!startData.success) {
-      throw new Error(startData.message)
+    console.log('[DOWNLOAD] 开始下载响应:', startData)
+
+    // 增强错误处理：检查 success 字段和 status 字段
+    if (startData.success === false || startData.status === 'error') {
+      const errorMsg = startData.message || startData.error || '下载失败，请稍后重试'
+      throw new Error(errorMsg)
+    }
+
+    // 如果没有task_id，说明可能出错了
+    if (!startData.task_id) {
+      throw new Error(startData.message || '无法创建下载任务')
     }
 
     downloadTaskId.value = startData.task_id
 
     const pollStatus = async () => {
+      // 检查是否应该继续轮询
+      if (!shouldContinuePolling) {
+        console.log('[DOWNLOAD] 轮询已停止')
+        return
+      }
+
       try {
         const statusResponse = await fetch(`/api/proxy/download/status/${downloadTaskId.value}`)
-        const status = await statusResponse.json()
+
+        // 检查HTTP状态
+        if (!statusResponse.ok) {
+          throw new Error(`服务器错误: ${statusResponse.status}`)
+        }
+
+        // 安全解析JSON
+        let status
+        try {
+          status = await statusResponse.json()
+          console.log('[DOWNLOAD] 状态响应:', status)  // 添加调试日志
+        } catch (jsonErr) {
+          throw new Error('服务器响应格式错误')
+        }
+
+        // 首先检查是否出错，如果有错误立即处理
+        if (status.status === 'error') {
+          const errorMsg = status.error || '下载失败，请稍后重试'
+          console.log('[DOWNLOAD] 检测到错误状态:', errorMsg)  // 添加调试日志
+          // 立即停止轮询
+          shouldContinuePolling = false
+          // 抛出错误，让外层 catch 处理
+          throw new Error(errorMsg)
+        }
 
         if (status.status === 'completed') {
-          downloadProgress.value = 100
+          // 下载完成，停止轮询
+          shouldContinuePolling = false
+
+          // 保持当前进度，避免突然跳到100%
+          // downloadProgress.value = 100
           const fileResponse = await fetch(`/api/proxy/download/file/${downloadTaskId.value}`)
           const blob = await fileResponse.blob()
           const url = window.URL.createObjectURL(blob)
@@ -1563,22 +1570,43 @@ const downloadVideo = async () => {
           window.URL.revokeObjectURL(url)
           ElMessage.success('下载完成！')
           downloading.value = false
-        } else if (status.status === 'error') {
-          throw new Error(status.error)
+          downloadProgress.value = 100  // 只在真正完成后才显示100%
         } else {
-          downloadProgress.value = status.progress || 0
-          setTimeout(pollStatus, 2000)
+          // 下载中状态，继续轮询
+          // 平滑更新进度，避免突然跳到0
+          const newProgress = status.progress || 0
+          if (newProgress > 0) {  // 只有当新进度大于0时才更新
+            downloadProgress.value = newProgress
+          }
+          // 继续轮询
+          if (shouldContinuePolling) {
+            setTimeout(pollStatus, 1000)  // 减少轮询间隔到1秒，让进度更新更频繁
+          }
         }
       } catch (err) {
+        // 捕获轮询过程中的错误
+        console.error('[DOWNLOAD] 下载状态轮询错误:', err)
+        // 立即停止轮询
+        shouldContinuePolling = false
+        // 重新抛出错误，让外层 catch 处理
         throw err
       }
     }
 
     pollStatus()
   } catch (err) {
-    ElMessage.error(err.message || '下载失败')
+    // 友好的错误提示
+    const errorMsg = err.message || '下载失败，请稍后重试'
+    ElMessage.error({
+      message: errorMsg,
+      duration: 5000,
+      showClose: true
+    })
+
+    // 重置所有状态
     downloading.value = false
     downloadProgress.value = 0
+    downloadTaskId.value = null
   }
 }
 
