@@ -8,6 +8,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 const VideoDownload = () => import('../views/VideoDownload.vue')
 const VideoSummarize = () => import('../views/VideoSummarize.vue')
 const TestView = () => import('../views/TestView.vue')
+const Login = () => import('../views/Login.vue')
+const Upgrade = () => import('../views/Upgrade.vue')
 
 const routes = [
   {
@@ -29,6 +31,16 @@ const routes = [
     path: '/test',
     name: 'test',
     component: TestView
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: Login
+  },
+  {
+    path: '/upgrade',
+    name: 'upgrade',
+    component: Upgrade
   },
   {
     path: '/:pathMatch(.*)*',

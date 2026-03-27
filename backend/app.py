@@ -24,6 +24,22 @@ except ImportError as e:
     print(f"[APP] AI模块导入失败: {e}", file=sys.stderr)
     AI_ENABLED = False
 
+# 认证模块（新增）
+AUTH_ENABLED = False
+try:
+    from auth.auth import create_auth_routes
+    AUTH_ENABLED = True
+except ImportError as e:
+    print(f"[APP] 认证模块导入失败: {e}", file=sys.stderr)
+
+# 支付模块（新增，可选）
+PAYMENT_ENABLED = False
+try:
+    from payment.stripe_handler import create_payment_routes
+    PAYMENT_ENABLED = True
+except ImportError as e:
+    print(f"[APP] 支付模块导入失败（需要 stripe）: {e}", file=sys.stderr)
+
 # 创建 Flask 应用
 app = Flask(__name__, static_folder='../frontend/dist')
 
@@ -35,7 +51,7 @@ CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"],
+        "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True
     }
 })
@@ -115,59 +131,109 @@ def parse_video():
         if not url:
             return jsonify({'success': False, 'message': '请输入视频链接'}), 400
 
-        # 识别平台
-        platform = VideoParser.identify_platform(url)
+        # 权限检查（可选：解析不算入次数限制）
+        # 解析本身不消耗次数，只在下载时统计
 
-        # 抖音使用专用解析器
-        if platform == 'douyin':
-            print(f"[PARSE] Using Douyin专用解析器 for: {url[:50]}", file=sys.stderr)
-            try:
-                from douyin_downloader import DouyinDownloader
-                douyin_result = DouyinDownloader.parse(url)
+        # 快速解析：使用 extract_flat 获取基本信息
+        fast_parse = data.get('fast', False)
 
-                if douyin_result.get('success'):
-                    # 转换为统一格式
-                    return jsonify({
-                        'success': True,
-                        'data': {
-                            'platform': 'douyin',
-                            'title': douyin_result.get('title'),
-                            'thumbnail': douyin_result.get('cover'),
-                            'duration': DouyinDownloader.format_duration(douyin_result.get('duration', 0)),
-                            'duration_seconds': douyin_result.get('duration', 0),
-                            'uploader': douyin_result.get('author'),
-                            'description': f"作者: {douyin_result.get('author', '')}\n点赞: {douyin_result.get('statistics', {}).get('digg_count', 0)}",
-                            'formats': [{
-                                'ext': 'mp4',
-                                'format_id': 'douyin_mp4',
-                                'quality': '原画',
-                                'height': douyin_result.get('height'),
-                                'width': douyin_result.get('width'),
-                                'url': douyin_result.get('video_url'),
-                                'http_headers': {
-                                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
-                                    'Referer': 'https://www.douyin.com/'
-                                }
-                            }]
-                        }
-                    }), 200
-                else:
-                    return jsonify({'success': False, 'message': douyin_result.get('error', '抖音视频解析失败')}), 400
+        if fast_parse:
+            # 快速模式：只获取基本信息，不获取详细格式
+            return _fast_parse_video(url)
 
-            except Exception as e:
-                print(f"[PARSE] Douyin解析失败: {e}, 降级到yt-dlp", file=sys.stderr)
-                # 降级到 yt-dlp
-                pass
-
-        # 其他平台使用 yt-dlp
-        result = VideoParser.parse(url)
-        return jsonify(result), 200 if result['success'] else 400
+        # 完整解析：获取所有格式信息
+        return _full_parse_video(url)
 
     except Exception as e:
         print(f"[ERROR] Parse error: {str(e)}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
         return jsonify({'success': False, 'message': f'解析失败: {str(e)}'}), 500
+
+
+def _fast_parse_video(url: str):
+    """快速解析视频（只获取基本信息）"""
+    try:
+        import yt_dlp
+
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,  # 不下载详细格式信息
+            'socket_timeout': 10,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+            return jsonify({
+                'success': True,
+                'data': {
+                    'platform': VideoParser.identify_platform(url),
+                    'title': info.get('title', '未知标题'),
+                    'thumbnail': info.get('thumbnail', ''),
+                    'uploader': info.get('uploader', info.get('channel', '')),
+                    'duration_seconds': info.get('duration', 0),
+                    'view_count': info.get('view_count'),
+                    'webpage_url': info.get('webpage_url', url),
+                    'fast_mode': True  # 标记为快速模式
+                }
+            }), 200
+
+    except Exception as e:
+        print(f"[FAST-PARSE] Error: {e}", file=sys.stderr)
+        # 如果快速解析失败，降级到完整解析
+        return _full_parse_video(url)
+
+
+def _full_parse_video(url: str):
+    """完整解析视频（获取所有格式信息）"""
+    # 抖音使用专用解析器
+    platform = VideoParser.identify_platform(url)
+
+    if platform == 'douyin':
+        print(f"[PARSE] Using Douyin专用解析器 for: {url[:50]}", file=sys.stderr)
+        try:
+            from douyin_downloader import DouyinDownloader
+            douyin_result = DouyinDownloader.parse(url)
+
+            if douyin_result.get('success'):
+                # 转换为统一格式
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'platform': 'douyin',
+                        'title': douyin_result.get('title'),
+                        'thumbnail': douyin_result.get('cover'),
+                        'duration': DouyinDownloader.format_duration(douyin_result.get('duration', 0)),
+                        'duration_seconds': douyin_result.get('duration', 0),
+                        'uploader': douyin_result.get('author'),
+                        'description': f"作者: {douyin_result.get('author', '')}\n点赞: {douyin_result.get('statistics', {}).get('digg_count', 0)}",
+                        'formats': [{
+                            'ext': 'mp4',
+                            'format_id': 'douyin_mp4',
+                            'quality': '原画',
+                            'height': douyin_result.get('height'),
+                            'width': douyin_result.get('width'),
+                            'url': douyin_result.get('video_url'),
+                            'http_headers': {
+                                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+                                'Referer': 'https://www.douyin.com/'
+                            }
+                        }]
+                    }
+                }), 200
+            else:
+                return jsonify({'success': False, 'message': douyin_result.get('error', '抖音视频解析失败')}), 400
+
+        except Exception as e:
+            print(f"[PARSE] Douyin解析失败: {e}, 降级到yt-dlp", file=sys.stderr)
+            # 降级到 yt-dlp
+            pass
+
+    # 其他平台使用 yt-dlp
+    result = VideoParser.parse(url)
+    return jsonify(result), 200 if result['success'] else 400
 
 
 @app.route('/api/platforms', methods=['GET'])
@@ -186,6 +252,35 @@ def get_platforms():
             {'id': 'vimeo', 'name': 'Vimeo', 'domains': ['vimeo.com']}
         ]
     })
+
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_parse_cache():
+    """清空解析缓存"""
+    try:
+        from video_parser import VideoParser
+        VideoParser.clear_cache()
+        return jsonify({'success': True, 'message': '缓存已清空'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'清空缓存失败: {str(e)}'}), 500
+
+
+@app.route('/api/cache/stats', methods=['GET'])
+def get_cache_stats():
+    """获取缓存统计信息"""
+    try:
+        from video_parser import VideoParser
+        cache_size = len(VideoParser._cache)
+        return jsonify({
+            'success': True,
+            'data': {
+                'cache_size': cache_size,
+                'cache_ttl': VideoParser._cache_ttl,
+                'cache_enabled': True
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'获取缓存信息失败: {str(e)}'}), 500
 
 
 @app.route('/api/proxy/thumbnail', methods=['GET'])
@@ -219,10 +314,34 @@ def proxy_download():
 
         video_url = data.get('video_url', '').strip()
         filename = data.get('filename', 'video.mp4')
-        format_id = data.get('format_id')  # 新增：用户选择的格式ID
+        format_id = data.get('format_id')
 
         if not video_url:
             return jsonify({'success': False, 'message': '缺少视频链接'}), 400
+
+        # 权限检查
+        user_id = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            payload = auth.auth.AuthManager.decode_token(token)
+            if payload:
+                user_id = payload.get('user_id')
+
+        # 检查下载次数限制
+        if user_id:
+            allowed, message, info = auth.auth.check_rate_limit(user_id, 'download')
+            if not allowed:
+                return jsonify({
+                    'success': False,
+                    'message': message,
+                    'code': 'RATE_LIMIT_EXCEEDED',
+                    'info': info
+                }), 403
+        else:
+            # 游客模式 - 使用 session 或 IP 限制
+            # 这里简化处理，允许游客使用
+            pass
 
         # 清理文件名
         def is_safe_char(c):
@@ -253,6 +372,7 @@ def proxy_download():
             'error': None,
             'output_path': output_path,
             'created_at': time.time(),
+            'user_id': user_id,  # 记录用户ID
             'video_url': video_url
         }
 
@@ -296,12 +416,24 @@ def proxy_download():
                 print(f"[DOWNLOAD-{task_id[:8]}] FFmpeg available: {has_ffmpeg}", file=sys.stderr)
 
                 # ========== 核心修复：平台特定的格式选择器 ==========
-                # 基础配置
+                # 基础配置 - 添加通用请求头，避免 HTTP 400 错误
+                # 使用目录路径而不是完整文件路径，让 yt-dlp 自动命名
                 ydl_opts = {
-                    'outtmpl': output_path,
-                    'quiet': True,
-                    'no_warnings': True,
+                    'outtmpl': os.path.join(download_dir, f'{task_id}.%(ext)s'),  # 使用模板，让yt-dlp决定扩展名
+                    'quiet': False,  # 改为 False，以便查看详细日志
+                    'no_warnings': False,  # 显示警告信息
+                    'nocheckcertificate': True,  # 跳过证书验证
+                    'socket_timeout': 30,  # 统一超时设置
+                    # 确保输出为 mp4 格式
+                    'merge_output_format': 'mp4',
                 }
+
+                # 只有在需要格式转换时才使用后处理器
+                # if has_ffmpeg:
+                #     ydl_opts['postprocessors'] = [{
+                #         'key': 'FFmpegVideoConvertor',
+                #         'preferedformat': 'mp4',
+                #     }]
 
                 # 如果有ffmpeg，设置ffmpeg路径（Windows需要）
                 if has_ffmpeg:
@@ -323,11 +455,12 @@ def proxy_download():
                     # B站使用DASH格式，音视频分离
                     # 添加B站专用的重试和超时配置
                     ydl_opts.update({
-                        'retries': 10,  # 增加重试次数
+                        'retries': 10,  # 重试次数
                         'file_access_retries': 10,
                         'fragment_retries': 10,  # 分片重试次数
                         'skip_unavailable_fragments': False,  # 不跳过失败片段
-                        'ignoreerrors': False,  # 遇到错误时停止
+                        'ignoreerrors': False,  # 遇到错误停止，这样可以知道真正的问题
+                        'nocheckcertificate': True,  # 跳过证书检查
                         # B站专用请求头（避免HTTP 400错误）
                         'http_headers': {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -339,29 +472,27 @@ def proxy_download():
                             'Sec-Fetch-Dest': 'empty',
                             'Sec-Fetch-Mode': 'cors',
                             'Sec-Fetch-Site': 'same-site',
+                            'Origin': 'https://www.bilibili.com',
                         },
-                        # 网络配置
-                        'socket_timeout': 30,
                         # DASH配置
                         'extractor_args': {
                             'bilibili': {
                                 'prefer_formats': 'dash-flv,_dash-mp4,aac-flv,mp4-flv'
                             }
-                        }
+                        },
+                        # 添加额外的网络配置
+                        'socket_timeout': 60,  # 增加超时时间到60秒
+                        'concurrent_fragment_downloads': 4,  # 增加并发下载数
                     })
 
                     # 根据用户选择的格式ID设置下载格式
                     if format_id and format_id != 'best':
-                        # 用户指定了特定格式
+                        # 用户指定了特定格式 - 不覆盖 http_headers
                         if has_ffmpeg:
                             # 有ffmpeg时，可以合并音视频
                             ydl_opts.update({
                                 'format': f'{format_id}+bestaudio/best',
                                 'merge_output_format': 'mp4',
-                                'http_headers': {
-                                    'Referer': video_url,
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                                }
                             })
                             print(f"[DOWNLOAD-{task_id[:8]}] Using format_id: {format_id} + audio merge", file=sys.stderr)
                         else:
@@ -369,24 +500,15 @@ def proxy_download():
                             ydl_opts.update({
                                 'format': format_id,
                                 'merge_output_format': None,
-                                'http_headers': {
-                                    'Referer': video_url,
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                                }
                             })
                             print(f"[DOWNLOAD-{task_id[:8]}] Using format_id: {format_id} (no audio merge)", file=sys.stderr)
                     elif format_id == 'best' or not format_id:
-                        # 最佳质量或默认
+                        # 最佳质量或默认 - 不覆盖 http_headers
                         if has_ffmpeg:
                             # 有ffmpeg时，下载最高质量并合并音视频
                             ydl_opts.update({
                                 'format': 'bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best',
                                 'merge_output_format': 'mp4',
-                                'http_headers': {
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                                    'Referer': 'https://www.bilibili.com/',
-                                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                                }
                             })
                             print(f"[DOWNLOAD-{task_id[:8]}] Using best format with audio merge", file=sys.stderr)
                         else:
@@ -395,22 +517,14 @@ def proxy_download():
                                 'format': 'bestvideo[ext=mp4][height<=1080]/bestvideo[ext=mp4]/best[height<=1080]/best',
                                 'merge_output_format': None,
                                 'postprocessors': [],
-                                'http_headers': {
-                                    'Referer': video_url,
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                                }
                             })
                             print(f"[DOWNLOAD-{task_id[:8]}] Using best format (no ffmpeg)", file=sys.stderr)
                     else:
-                        # 无ffmpeg时，使用B站专用的下载格式
+                        # 默认格式
                         ydl_opts.update({
                             'format': 'bestvideo[ext=mp4][height<=720]/bestvideo[ext=mp4]/best[height<=720]/best',
                             'merge_output_format': None,
                             'postprocessors': [],
-                            'http_headers': {
-                                'Referer': video_url,
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                            }
                         })
                 elif platform == 'xiaohongshu':
                     # 小红书需要cookies支持
@@ -423,8 +537,6 @@ def proxy_download():
                             'format': 'best[protocol=http]/best[ext=mp4]/best',
                             'merge_output_format': None,
                             'cookiefile': cookie_file,
-                            'nocheckcertificate': True,
-                            'socket_timeout': 60,
                             'http_headers': {
                                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
                                 'Referer': 'https://www.xiaohongshu.com/'
@@ -437,8 +549,6 @@ def proxy_download():
                             'format': 'best[protocol=http]/best[ext=mp4]/best',
                             'merge_output_format': None,
                             'cookiesfrombrowser': ('chrome', 'edge', 'firefox'),
-                            'nocheckcertificate': True,
-                            'socket_timeout': 60,
                             'http_headers': {
                                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
                                 'Referer': 'https://www.xiaohongshu.com/'
@@ -446,7 +556,26 @@ def proxy_download():
                         })
                         print(f"[DOWNLOAD-{task_id[:8]}] Using browser cookies for Xiaohongshu", file=sys.stderr)
                 else:
-                    # YouTube 和其他平台
+                    # YouTube 和其他平台 - 添加通用请求头
+                    base_headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                        'Accept': '*/*',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                    }
+
+                    # 根据平台设置特定的 Referer
+                    if platform == 'youtube':
+                        base_headers['Referer'] = 'https://www.youtube.com/'
+                    elif platform == 'weibo':
+                        base_headers['Referer'] = 'https://weibo.com/'
+                    elif platform == 'zhihu':
+                        base_headers['Referer'] = 'https://www.zhihu.com/'
+                    else:
+                        # 使用视频页面作为 referer
+                        base_headers['Referer'] = video_url if video_url.startswith('http') else 'https://www.google.com'
+
+                    ydl_opts['http_headers'] = base_headers
+
                     if has_ffmpeg:
                         ydl_opts.update({
                             'format': 'bestvideo+bestaudio/best',
@@ -464,33 +593,82 @@ def proxy_download():
                         downloaded = d.get('downloaded_bytes', 0)
                         total = d.get('total_bytes') or d.get('filesize') or 1
                         progress = int(downloaded / total * 100) if total > 0 else 0
-                        download_tasks[task_id]['progress'] = progress
-                        if progress % 20 == 0:  # 每20%打印一次
+
+                        # 对于DASH下载，使用更平滑的进度显示
+                        # 如果进度突然下降（新段开始），保持之前的进度
+                        current_progress = download_tasks[task_id].get('progress', 0)
+                        if progress < current_progress and progress < 90:
+                            # 进度倒退，可能是新段开始，保持当前进度
+                            progress = current_progress
+
+                        # 限制最高进度为95%，为后处理预留空间
+                        display_progress = min(progress, 95)
+
+                        # 只在进度增加时更新，避免跳变
+                        if display_progress > current_progress:
+                            download_tasks[task_id]['progress'] = display_progress
+
+                        if progress % 20 == 0 or progress == 100:  # 每20%打印一次
                             print(f"[DOWNLOAD-{task_id[:8]}] Progress: {progress}% ({downloaded}/{total})", file=sys.stderr)
+                    elif d['status'] == 'finished':
+                        # 下载完成，开始后处理
+                        download_tasks[task_id]['progress'] = 95  # 后处理时保持95%
+                        print(f"[DOWNLOAD-{task_id[:8]}] Download finished, processing...", file=sys.stderr)
 
                 ydl_opts['progress_hooks'] = [progress_hook]
 
                 print(f"[DOWNLOAD-{task_id[:8]}] Starting download for platform: {platform}", file=sys.stderr)
+                print(f"[DOWNLOAD-{task_id[:8]}] Output path: {output_path}", file=sys.stderr)
+                print(f"[DOWNLOAD-{task_id[:8]}] Download directory exists: {os.path.exists(os.path.dirname(output_path))}", file=sys.stderr)
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([video_url])
 
                 # 检查文件
-                if os.path.exists(output_path):
-                    file_size = os.path.getsize(output_path)
-                    if file_size >= 1000:  # 至少1KB
-                        download_tasks[task_id]['status'] = 'completed'
-                        download_tasks[task_id]['file_size'] = file_size
-                        download_tasks[task_id]['progress'] = 100
-                        print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes", file=sys.stderr)
+                print(f"[DOWNLOAD-{task_id[:8]}] Download finished, checking file...", file=sys.stderr)
+
+                # 检查可能的文件路径（因为 yt-dlp 可能使用不同的扩展名）
+                # 使用外部定义的 download_dir，而不是重新定义
+                base_name = task_id  # 使用 task_id 作为基础名称
+
+                # 列出目录中所有以 task_id 开头的文件
+                if os.path.exists(download_dir):
+                    all_files = os.listdir(download_dir)
+                    matching_files = [f for f in all_files if f.startswith(base_name)]
+                    print(f"[DOWNLOAD-{task_id[:8]}] Matching files: {matching_files}", file=sys.stderr)
+
+                    if matching_files:
+                        # 使用第一个匹配的文件
+                        actual_file = os.path.join(download_dir, matching_files[0])
+                        file_size = os.path.getsize(actual_file)
+                        print(f"[DOWNLOAD-{task_id[:8]}] Found file: {actual_file}, size: {file_size} bytes", file=sys.stderr)
+
+                        if file_size >= 1000:  # 至少1KB
+                            download_tasks[task_id]['status'] = 'completed'
+                            download_tasks[task_id]['file_size'] = file_size
+                            download_tasks[task_id]['progress'] = 100  # 只在真正完成时才设置为100%
+                            # 更新实际文件路径
+                            download_tasks[task_id]['actual_file_path'] = actual_file
+
+                            # 增加用户下载次数
+                            user_id = download_tasks[task_id].get('user_id')
+                            if user_id:
+                                db_manager.increment_usage(user_id, 'download')
+                                print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (counted for user {user_id})", file=sys.stderr)
+                            else:
+                                print(f"[DOWNLOAD-{task_id[:8]}] ✓ Completed: {file_size} bytes (guest mode)", file=sys.stderr)
+                        else:
+                            download_tasks[task_id]['status'] = 'error'
+                            download_tasks[task_id]['error'] = f'下载文件太小 ({file_size} bytes)'
+                            print(f"[DOWNLOAD-{task_id[:8]}] ✗ File too small: {file_size} bytes", file=sys.stderr)
                     else:
                         download_tasks[task_id]['status'] = 'error'
-                        download_tasks[task_id]['error'] = f'下载文件太小 ({file_size} bytes)'
-                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ File too small", file=sys.stderr)
+                        download_tasks[task_id]['error'] = '文件未创建，请检查视频是否可用或稍后重试'
+                        print(f"[DOWNLOAD-{task_id[:8]}] ✗ No file created. All files in directory: {all_files}", file=sys.stderr)
                 else:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = '文件未创建'
-                    print(f"[DOWNLOAD-{task_id[:8]}] ✗ No file created", file=sys.stderr)
+                    download_tasks[task_id]['error'] = '下载目录不存在'
+                    print(f"[DOWNLOAD-{task_id[:8]}] ✗ Download directory does not exist: {download_dir}", file=sys.stderr)
 
             except yt_dlp.utils.DownloadError as e:
                 error_msg = str(e)
@@ -518,17 +696,23 @@ def proxy_download():
                 elif 'bilivideo' in error_msg.lower():
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = 'B站CDN连接失败，请稍后重试'
+                elif 'JSONDecodeError' in error_msg or 'parse JSON' in error_msg or 'Failed to parse JSON' in error_msg:
+                    download_tasks[task_id]['status'] = 'error'
+                    download_tasks[task_id]['error'] = 'B站API解析失败，请稍后重试或尝试其他视频'
                 else:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = f'下载失败: {error_msg[:100]}'
+                    download_tasks[task_id]['error'] = f'下载失败，请稍后重试'  # 简化错误消息，避免暴露技术细节
 
             except Exception as e:
                 error_msg = str(e)
-                download_tasks[task_id]['status'] = 'error'
-                download_tasks[task_id]['error'] = f'下载异常: {error_msg[:150]}'
                 print(f"[DOWNLOAD-{task_id[:8]}] ✗ Exception: {error_msg}", file=sys.stderr)
                 import traceback
                 traceback.print_exc(file=sys.stderr)
+
+                # 检查是否已经设置了错误消息（在 DownloadError 处理中）
+                if download_tasks[task_id].get('status') != 'error':
+                    download_tasks[task_id]['status'] = 'error'
+                    download_tasks[task_id]['error'] = f'下载异常: {error_msg[:150]}'
 
         # 启动后台下载任务
         thread = threading.Thread(target=download_task, daemon=True)
@@ -578,9 +762,12 @@ def download_file(task_id):
         print(f"[DOWNLOAD-FILE] Task not completed, status: {task.get('status')}", file=sys.stderr)
         return jsonify({'error': '文件未准备好'}), 404
 
-    output_path = task.get('output_path')
+    # 优先使用实际文件路径，否则使用 output_path
+    output_path = task.get('actual_file_path') or task.get('output_path')
+
     if not output_path or not os.path.exists(output_path):
         print(f"[DOWNLOAD-FILE] File not found: {output_path}", file=sys.stderr)
+        print(f"[DOWNLOAD-FILE] Task data: {task}", file=sys.stderr)
         return jsonify({'error': '文件不存在'}), 404
 
     # 获取文件大小
@@ -689,9 +876,23 @@ if __name__ == '__main__':
             app.register_blueprint(ai_bp)
             print("AI summarization feature: Enabled")
         else:
-            print("AI summarization feature: Not configured (please set DEEPSEEK_API_KEY in backend/.env)")
+            print("AI总结功能: 未配置（请在 backend/.env 中设置 DEEPSEEK_API_KEY）")
     else:
         print("AI总结功能: 模块未安装")
+
+    # 初始化认证功能（新增）
+    if AUTH_ENABLED:
+        create_auth_routes(app)
+        print("用户认证功能: Enabled")
+    else:
+        print("用户认证功能: 模块未安装")
+
+    # 初始化支付功能（新增，可选）
+    if PAYMENT_ENABLED:
+        create_payment_routes(app)
+        print("Stripe 支付功能: Enabled")
+    else:
+        print("Stripe 支付功能: 未配置")
 
     print("=" * 50)
 

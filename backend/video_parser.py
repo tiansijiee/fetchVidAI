@@ -4,7 +4,11 @@
 """
 import yt_dlp
 import re
+import sys
+import time
+import hashlib
 from typing import Dict, List, Optional
+from functools import lru_cache
 
 
 class VideoParser:
@@ -24,6 +28,46 @@ class VideoParser:
         # 'douyin': ['douyin.com', 'iesdouyin.com'],  # 已失效
         # 'xiaohongshu': ['xiaohongshu.com', 'xhslink.com'],  # 需要Cookie
     }
+
+    # 缓存配置
+    _cache = {}
+    _cache_ttl = 300  # 5分钟缓存
+
+    @classmethod
+    def _get_cache_key(cls, url: str) -> str:
+        """生成缓存键"""
+        return hashlib.md5(url.encode()).hexdigest()
+
+    @classmethod
+    def _get_from_cache(cls, url: str) -> Optional[Dict]:
+        """从缓存获取数据"""
+        cache_key = cls._get_cache_key(url)
+        if cache_key in cls._cache:
+            cached_data, timestamp = cls._cache[cache_key]
+            if time.time() - timestamp < cls._cache_ttl:
+                print(f"[CACHE] Hit for URL: {url[:50]}...", file=sys.stderr)
+                return cached_data
+            else:
+                # 缓存过期，删除
+                del cls._cache[cache_key]
+        return None
+
+    @classmethod
+    def _save_to_cache(cls, url: str, data: Dict):
+        """保存数据到缓存"""
+        cache_key = cls._get_cache_key(url)
+        cls._cache[cache_key] = (data, time.time())
+        # 限制缓存大小，最多保留100个条目
+        if len(cls._cache) > 100:
+            oldest_key = min(cls._cache.keys(), key=lambda k: cls._cache[k][1])
+            del cls._cache[oldest_key]
+        print(f"[CACHE] Saved for URL: {url[:50]}...", file=sys.stderr)
+
+    @classmethod
+    def clear_cache(cls):
+        """清空缓存"""
+        cls._cache.clear()
+        print("[CACHE] Cleared all cache", file=sys.stderr)
 
     @classmethod
     def identify_platform(cls, url: str) -> Optional[str]:
@@ -245,7 +289,7 @@ class VideoParser:
     @classmethod
     def parse(cls, url: str) -> Dict:
         """
-        解析视频链接
+        解析视频链接（带缓存优化）
         返回: {
             'success': bool,
             'message': str,
@@ -262,17 +306,46 @@ class VideoParser:
 
         platform = result
 
-        # yt-dlp 配置
+        # 检查缓存
+        cached_result = cls._get_from_cache(url)
+        if cached_result:
+            return cached_result
+
+        # 优化的 yt-dlp 配置（针对快速解析）
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,  # 跳过证书检查
-            'socket_timeout': 30,  # 30秒超时
+            'socket_timeout': 15,  # 减少超时时间到15秒
+            'extract_flat': False,  # 需要完整信息用于格式提取
+            # 优化网络请求
+            'concurrent_fragment_downloads': 2,  # 并发下载片段
         }
 
+        # 平台特定优化
+        if platform == 'bilibili':
+            ydl_opts.update({
+                'socket_timeout': 20,  # B站需要更长的超时
+                'extractor_args': {
+                    'bilibili': {
+                        'prefer_formats': 'dash-flv,_dash-mp4,aac-flv,mp4-flv'
+                    }
+                }
+            })
+        elif platform == 'youtube':
+            ydl_opts.update({
+                'socket_timeout': 10,  # YouTube 响应较快
+            })
+
         try:
+            print(f"[PARSE] Starting parsing for {platform}: {url[:50]}...", file=sys.stderr)
+            start_time = time.time()
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+
+                parse_time = time.time() - start_time
+                print(f"[PARSE] Completed in {parse_time:.2f}s for {platform}", file=sys.stderr)
 
                 # 提取视频信息
                 video_data = {
@@ -294,14 +367,21 @@ class VideoParser:
                 for fmt in formats:
                     fmt['size_formatted'] = cls.format_filesize(fmt.get('filesize'))
 
-                return {
+                result = {
                     'success': True,
                     'message': '解析成功',
                     'data': video_data
                 }
 
+                # 保存到缓存
+                cls._save_to_cache(url, result)
+
+                return result
+
         except Exception as e:
             error_msg = str(e)
+            print(f"[PARSE] Error for {platform}: {error_msg[:100]}", file=sys.stderr)
+
             # 根据错误类型返回友好提示
             if 'Unsupported URL' in error_msg:
                 return {

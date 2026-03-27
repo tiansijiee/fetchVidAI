@@ -21,6 +21,8 @@
               <router-link to="/download" class="nav-link">视频下载</router-link>
               <router-link to="/summarize" class="nav-link-active">AI总结</router-link>
             </nav>
+            <!-- 用户菜单 -->
+            <UserMenu />
           </div>
         </div>
       </header>
@@ -400,6 +402,7 @@
 <script setup>
 import { ref, reactive, computed, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
+import UserMenu from '../components/UserMenu.vue'
 
 const videoUrl = ref('')
 const processing = ref(false)
