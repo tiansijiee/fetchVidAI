@@ -685,9 +685,9 @@ def proxy_download():
                     print(f"[DOWNLOAD-{task_id[:8]}] 配置B站下载参数", file=sys.stderr)
 
                     ydl_opts.update({
-                        'retries': 10,  # 重试次数
-                        'file_access_retries': 10,
-                        'fragment_retries': 10,  # 分片重试次数
+                        'retries': 15,  # 增加重试次数到15
+                        'file_access_retries': 15,
+                        'fragment_retries': 15,  # 分片重试次数
                         'skip_unavailable_fragments': True,  # 跳过失败片段，提高成功率
                         'ignoreerrors': False,  # 遇到错误停止，以便发现问题
                         'nocheckcertificate': True,  # 跳过证书检查
@@ -712,9 +712,15 @@ def proxy_download():
                             }
                         },
                         # 添加额外的网络配置
-                        'socket_timeout': 120,  # 增加超时时间到120秒
+                        'socket_timeout': 180,  # 增加超时时间到180秒
                         'concurrent_fragment_downloads': 2,  # 减少并发数，避免被限流
                         'buffersize': 1024 * 16,  # 增加缓冲区大小
+                        # 添加重试延迟配置
+                        'retry_sleep_functions': {
+                            'http': lambda n: min(10, n * 2),  # 指数退避，最大10秒
+                            'fragment': lambda n: min(5, n),  # 分片重试延迟
+                            'file_access': lambda n: min(5, n * 2),
+                        },
                     })
 
                     # 根据用户选择的格式ID设置下载格式
@@ -959,7 +965,7 @@ def proxy_download():
                     download_tasks[task_id]['error'] = 'B站CDN连接失败，请稍后重试'
                 elif 'JSONDecodeError' in error_msg or 'parse JSON' in error_msg or 'Failed to parse JSON' in error_msg or 'Expecting value' in error_msg:
                     download_tasks[task_id]['status'] = 'error'
-                    download_tasks[task_id]['error'] = 'B站API返回异常，可能是网络波动或限流，请稍后重试'
+                    download_tasks[task_id]['error'] = 'B站API暂时不稳定（可能是限流），建议：1) 等待1-2分钟后重试 2) 尝试其他清晰度 3) 使用非高峰时段下载'
                 elif 'Unable to download' in error_msg or 'giving up' in error_msg.lower():
                     download_tasks[task_id]['status'] = 'error'
                     download_tasks[task_id]['error'] = '无法下载视频片段，请稍后重试或尝试其他视频'

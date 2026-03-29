@@ -571,30 +571,31 @@
                       </svg>
                       全屏查看
                     </button>
-                    <!-- 下载格式切换按钮 -->
+                    <!-- PNG导出按钮 -->
                     <button
-                      @click="toggleMindmapDownloadFormat"
-                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors flex items-center gap-1"
+                      @click="downloadMindmapPNG"
+                      class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-colors flex items-center gap-1"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                       </svg>
-                      {{ mindmapDownloadFormat === 'svg' ? 'SVG' : 'MD' }}
+                      导出 PNG
                     </button>
+                    <!-- SVG导出按钮 -->
                     <button
-                      @click="downloadMindmap(mindmapDownloadFormat)"
+                      @click="downloadMindmapSVG"
                       class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1677ff] text-white hover:bg-[#1455cc] transition-colors flex items-center gap-1"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                       </svg>
-                      下载{{ mindmapDownloadFormat === 'svg' ? 'SVG' : 'MD' }}
+                      导出 SVG
                     </button>
                   </div>
                 </div>
 
                 <!-- 思维导图内容 -->
-                <div v-if="aiMindmap" class="relative">
+                <div v-if="aiMindmap" class="relative min-h-[500px]">
                   <div
                     :class="mindmapFullscreen ? 'fixed inset-0 z-50 bg-white p-8 overflow-auto' : 'bg-gray-50 rounded-lg p-4'"
                   >
@@ -870,7 +871,6 @@ const subtitleFormat = ref('srt') // srt 或 txt
 // 思维导图相关状态
 const mindmapFullscreen = ref(false)
 const mindmapViewMode = ref('interactive') // 'interactive' 或 'markdown'
-const mindmapDownloadFormat = ref('svg') // 'png' 或 'md'，默认PNG
 const mindmapSvg = ref(null)
 const markmapInstance = ref(null)
 
@@ -1082,49 +1082,106 @@ const toggleSubtitleExpanded = () => {
   subtitleExpanded.value = !subtitleExpanded.value
 }
 
-// 下载思维导图
-const downloadMindmap = async (format = 'md') => {
-  if (!aiMindmap.value) {
-    ElMessage.warning('暂无思维导图可下载')
+// 导出思维导图为PNG（2倍高清）
+const downloadMindmapPNG = async () => {
+  if (!mindmapSvg.value) {
+    ElMessage.warning('思维导图未渲染完成，请稍后再试')
     return
   }
 
-  const filename = `${videoData.value?.title || 'mindmap'}.${format}`
+  try {
+    ElMessage.info('正在生成高清PNG，请稍候...')
 
-  if (format === 'md') {
-    // MD 下载（保持不变）
-    const blob = new Blob([aiMindmap.value], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
+    // 获取SVG的实际尺寸
+    const svgElement = mindmapSvg.value
+    const svgRect = svgElement.getBoundingClientRect()
+
+    // 序列化SVG
+    const svgData = new XMLSerializer().serializeToString(svgElement)
+
+    // 关键修复：使用 data URL 而不是 blob URL 来避免 CORS 问题
+    // 将 SVG 编码为 base64 data URL
+    const svgBase64 = btoa(unescape(encodeURIComponent(svgData)))
+    const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`
+
+    // 创建图片对象，设置 crossOrigin 属性
+    const img = new Image()
+    img.crossOrigin = 'anonymous'  // 关键：设置跨域属性
+
+    img.onload = () => {
+      try {
+        // 创建Canvas（2倍缩放）
+        const canvas = document.createElement('canvas')
+        const scale = 2 // 2倍高清
+        canvas.width = svgRect.width * scale
+        canvas.height = svgRect.height * scale
+
+        const ctx = canvas.getContext('2d')
+
+        // 设置白色背景（避免透明）
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+        // 绘制图片（2倍缩放）
+        ctx.scale(scale, scale)
+        ctx.drawImage(img, 0, 0)
+
+        // 转换为PNG并下载
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const pngUrl = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = pngUrl
+            link.download = `${videoData.value?.title || 'mindmap'}.png`
+            link.click()
+            URL.revokeObjectURL(pngUrl)
+            ElMessage.success('PNG导出成功！')
+          } else {
+            ElMessage.error('PNG生成失败，请重试或使用SVG格式')
+          }
+        }, 'image/png')
+      } catch (drawError) {
+        console.error('Canvas绘制错误:', drawError)
+        ElMessage.error('PNG生成失败：' + drawError.message)
+      }
+    }
+
+    img.onerror = (error) => {
+      console.error('图片加载错误:', error)
+      ElMessage.error('PNG生成失败，请重试或使用SVG格式')
+    }
+
+    // 加载SVG（使用 data URL）
+    img.src = svgDataUrl
+
+  } catch (error) {
+    console.error('PNG导出错误:', error)
+    ElMessage.error('PNG导出失败：' + error.message)
+  }
+}
+
+// 导出思维导图为SVG
+const downloadMindmapSVG = () => {
+  if (!mindmapSvg.value) {
+    ElMessage.warning('思维导图未渲染完成，请稍后再试')
+    return
+  }
+
+  try {
+    const svgData = new XMLSerializer().serializeToString(mindmapSvg.value)
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const svgUrl = URL.createObjectURL(svgBlob)
+
     const link = document.createElement('a')
-    link.href = url
-    link.download = filename
+    link.href = svgUrl
+    link.download = `${videoData.value?.title || 'mindmap'}.svg`
     link.click()
-    URL.revokeObjectURL(url)
-    ElMessage.success('思维导图已下载为 MD 格式')
-  } 
-  else if (format === 'svg') {
-    if (!mindmapSvg.value) {
-      ElMessage.warning('思维导图未渲染完成，请稍后再试')
-      return
-    }
+    URL.revokeObjectURL(svgUrl)
 
-    try {
-      // ✅ 方案：直接导出 SVG，让用户手动转 PNG（最稳妥，无跨域报错）
-      const svgData = new XMLSerializer().serializeToString(mindmapSvg.value)
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-      const svgUrl = URL.createObjectURL(svgBlob)
-      
-      const link = document.createElement('a')
-      link.href = svgUrl
-      link.download = filename.replace('.png', '.svg')
-      link.click()
-      URL.revokeObjectURL(svgUrl)
-      
-      ElMessage.success('已导出 SVG 格式，如需可在浏览器打开后右键「另存为 PNG」')
-    } catch (error) {
-      console.error('导出错误:', error)
-      ElMessage.error('导出失败，请使用 MD 格式')
-    }
+    ElMessage.success('SVG导出成功！')
+  } catch (error) {
+    console.error('SVG导出错误:', error)
+    ElMessage.error('SVG导出失败：' + error.message)
   }
 }
 
@@ -1135,11 +1192,6 @@ const toggleMindmapFullscreen = () => {
   if (mindmapFullscreen.value && mindmapViewMode.value === 'interactive') {
     nextTick(() => renderMindmap())
   }
-}
-
-// 切换思维导图下载格式
-const toggleMindmapDownloadFormat = () => {
-  mindmapDownloadFormat.value = mindmapDownloadFormat.value === 'svg' ? 'md' : 'svg'
 }
 
 // ==============================================
