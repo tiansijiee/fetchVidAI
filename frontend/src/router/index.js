@@ -10,6 +10,9 @@ const VideoSummarize = () => import('../views/VideoSummarize.vue')
 const TestView = () => import('../views/TestView.vue')
 const Login = () => import('../views/Login.vue')
 const Upgrade = () => import('../views/Upgrade.vue')
+const Pricing = () => import('../views/Pricing.vue')
+const Features = () => import('../views/Features.vue')
+const Tutorial = () => import('../views/Tutorial.vue')
 
 const routes = [
   {
@@ -21,6 +24,21 @@ const routes = [
     path: '/download',
     name: 'download',
     component: VideoDownload
+  },
+  {
+    path: '/pricing',
+    name: 'pricing',
+    component: Pricing
+  },
+  {
+    path: '/features',
+    name: 'features',
+    component: Features
+  },
+  {
+    path: '/tutorial',
+    name: 'tutorial',
+    component: Tutorial
   },
   {
     path: '/summarize',

@@ -1,35 +1,51 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-gray-50 to-white font-sans">
-    <!-- 顶部导航栏 -->
-    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+    <!-- 顶部导航栏 - 浅蓝渐变 + 毛玻璃效果 -->
+    <header class="bg-gradient-to-r from-blue-50/90 via-white/95 to-blue-50/90 backdrop-blur-xl border-b border-blue-100/50 sticky top-0 z-50 shadow-sm">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
           <!-- Logo区域 -->
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20">
+            <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
               <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
               </svg>
             </div>
             <div class="flex flex-col">
               <span class="text-lg font-bold text-gray-900 leading-tight">FetchVid</span>
-              <span class="text-xs text-gray-500 leading-tight">万能视频下载器</span>
+              <span class="text-xs text-gray-500 leading-tight">智能视频下载</span>
             </div>
           </div>
 
-          <!-- 导航入口 -->
-          <nav class="hidden md:flex items-center gap-8">
-            <router-link to="/download" class="nav-link-active">视频下载</router-link>
-            <router-link to="/summarize" class="nav-link">AI总结</router-link>
+          <!-- 导航入口 - 添加更多导航项 -->
+          <nav class="hidden lg:flex items-center gap-8">
+            <router-link to="/download" class="nav-link text-base font-semibold text-blue-600 hover:text-blue-700 transition-colors relative">
+              视频下载
+              <span class="absolute -bottom-6 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>
+            </router-link>
+            <router-link to="/pricing" class="nav-link text-base font-medium text-gray-600 hover:text-blue-600 transition-colors">套餐价格</router-link>
+            <router-link to="/features" class="nav-link text-base font-medium text-gray-600 hover:text-blue-600 transition-colors">功能特性</router-link>
+            <router-link to="/tutorial" class="nav-link text-base font-medium text-gray-600 hover:text-blue-600 transition-colors">使用教程</router-link>
           </nav>
 
           <!-- VIP入口 & 用户菜单 -->
           <div class="flex items-center gap-3">
+            <!-- VIP按钮 -->
+            <button
+              @click="handleUpgrade"
+              class="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-medium transition-all duration-200 shadow-md shadow-purple-500/30 hover:shadow-lg hover:shadow-purple-500/40 text-sm"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+              </svg>
+              <span>开通VIP</span>
+            </button>
+
             <!-- 用户菜单组件 -->
             <UserMenu />
 
             <!-- 移动端菜单按钮 -->
-            <button class="md:hidden p-2" @click="mobileMenuOpen = !mobileMenuOpen">
+            <button class="lg:hidden p-2 text-gray-600 hover:text-blue-600 transition-colors" @click="mobileMenuOpen = !mobileMenuOpen">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
               </svg>
@@ -38,11 +54,13 @@
         </div>
 
         <!-- 移动端菜单 -->
-        <div v-if="mobileMenuOpen" class="md:hidden py-4 border-t border-gray-100">
-          <nav class="flex flex-col gap-4">
-            <router-link to="/download" class="nav-link-active">视频下载</router-link>
-            <router-link to="/summarize" class="nav-link">AI总结</router-link>
-            <button class="btn-gradient-ai w-full">开通VIP</button>
+        <div v-if="mobileMenuOpen" class="lg:hidden py-4 border-t border-blue-100/50">
+          <nav class="flex flex-col gap-3">
+            <router-link to="/download" class="text-base font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-blue-50 transition-colors">视频下载</router-link>
+            <router-link to="/pricing" class="text-base font-medium text-gray-600 py-2 px-4 rounded-lg hover:bg-blue-50 transition-colors">套餐价格</router-link>
+            <router-link to="/features" class="text-base font-medium text-gray-600 py-2 px-4 rounded-lg hover:bg-blue-50 transition-colors">功能特性</router-link>
+            <router-link to="/tutorial" class="text-base font-medium text-gray-600 py-2 px-4 rounded-lg hover:bg-blue-50 transition-colors">使用教程</router-link>
+            <button @click="handleUpgrade" class="btn-gradient-vip w-full">开通VIP</button>
           </nav>
         </div>
       </div>
@@ -51,49 +69,63 @@
     <!-- 主内容区 -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
 
-      <!-- Hero区域 - 大标题与副标题 -->
+      <!-- Hero区域 - 蓝紫渐变标题 -->
       <div class="text-center mb-12 lg:mb-16 animate-slideUp">
-        <div class="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-200 rounded-full mb-6">
+        <div class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50/80 border border-blue-200/50 rounded-full mb-6 backdrop-blur-sm">
           <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
           </span>
-          <span class="text-sm font-medium text-primary-700">支持100+视频平台</span>
+          <span class="text-sm font-medium text-blue-700">支持100+视频平台</span>
         </div>
 
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-          万能视频下载器
-          <span class="gradient-text block mt-2">一键下载任意视频</span>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+          <span class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-700 bg-clip-text text-transparent">万能视频下载器</span>
+          <span class="block mt-2 text-3xl sm:text-4xl lg:text-5xl text-gray-800">一键下载任意视频</span>
         </h1>
 
         <p class="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-          粘贴链接，立即下载高清视频。支持 B站/YouTube/微博/抖音等平台
+          粘贴链接，一键下载 + AI 智能总结
         </p>
 
-        <!-- 核心价值标签 -->
+        <!-- 核心价值标签 - 圆角胶囊 + 浅蓝背景 -->
         <div class="flex flex-wrap justify-center gap-3 mb-8">
-          <span class="badge badge-primary">高速下载</span>
-          <span class="badge badge-purple">AI智能总结</span>
-          <span class="badge badge-gray">多清晰度</span>
-          <span class="badge badge-gray">完全免费</span>
+          <span class="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            高速下载
+          </span>
+          <span class="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+            </svg>
+            AI 智能总结
+          </span>
+          <span class="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-sm font-medium">
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            多清晰度
+          </span>
         </div>
       </div>
 
-      <!-- 核心输入区 - 强化视觉优先级 -->
+      <!-- 核心输入区 - 优化后的样式 -->
       <div class="max-w-4xl mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.1s">
-        <div class="glass-card p-6 sm:p-8 lg:p-10">
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-blue-100/50 border border-blue-100 p-6 sm:p-8 lg:p-10">
           <!-- 输入引导文案 -->
           <div class="flex items-center justify-between mb-4">
             <label class="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <svg class="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
               </svg>
               粘贴视频链接开始下载
             </label>
-            <span class="text-xs text-gray-500">支持HTTPS链接</span>
+            <span class="text-xs text-gray-500">支持 HTTPS 链接</span>
           </div>
 
-          <!-- 输入区域 - 大尺寸设计 -->
+          <!-- 输入区域 - 圆角 + 轻微阴影 + 聚焦高亮 -->
           <div class="flex flex-col lg:flex-row gap-4">
             <div class="flex-1 relative">
               <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
@@ -105,15 +137,16 @@
                 v-model="videoUrl"
                 type="text"
                 placeholder="粘贴视频链接，如 https://www.bilibili.com/video/..."
-                class="input-field-lg pl-14 pr-6"
+                class="w-full pl-14 pr-6 py-4 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none shadow-sm hover:shadow-md"
                 @keyup.enter="parseVideo"
                 :disabled="loading"
               >
             </div>
+            <!-- 蓝紫渐变按钮 + 悬停放大效果 -->
             <button
               @click="parseVideo"
               :disabled="!videoUrl.trim() || loading"
-              class="btn-primary text-lg px-10 py-5 min-w-[180px] flex items-center justify-center gap-3"
+              class="text-lg px-10 py-4 min-w-[180px] flex items-center justify-center gap-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               <svg v-if="!loading" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -152,32 +185,32 @@
         </div>
       </div>
 
-      <!-- 使用步骤说明 -->
-      <div class="max-w-5xl mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.2s">
-        <div class="text-center mb-8">
+      <!-- 使用步骤说明 - 优化后的样式 -->
+      <div class="max-w-5xl 不要mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.2s">
+        <div class="text-center mb-10">
           <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">简单三步，轻松下载</h2>
-          <p class="text-gray-600">无需安装软件，浏览器内直接完成</p>
+          <p class="text-gray-500 text-sm">无需安装软件，浏览器内直接完成</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-          <!-- 步骤1 -->
-          <div class="glass-card-hover p-6 text-center">
-            <div class="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- 步骤1 - 蓝色渐变圆形 + 白色图标 -->
+          <div class="group p-6 text-center bg-white/50 rounded-2xl hover:bg-white/80 transition-all duration-200">
+            <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30 group-hover:shadow-xl group-hover:shadow-blue-500/40 transition-all">
+              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
               </svg>
             </div>
             <div class="flex items-center justify-center gap-2 mb-3">
-              <span class="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+              <span class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
               <h3 class="text-lg font-bold text-gray-900">粘贴链接</h3>
             </div>
-            <p class="text-sm text-gray-600">从任意视频平台复制视频链接</p>
+            <p class="text-sm text-gray-500">从任意视频平台复制链接</p>
           </div>
 
-          <!-- 步骤2 -->
-          <div class="glass-card-hover p-6 text-center">
-            <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- 步骤2 - 紫色渐变圆形 + 白色图标 -->
+          <div class="group p-6 text-center bg-white/50 rounded-2xl hover:bg-white/80 transition-all duration-200">
+            <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30 group-hover:shadow-xl group-hover:shadow-purple-500/40 transition-all">
+              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
             </div>
@@ -185,21 +218,21 @@
               <span class="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
               <h3 class="text-lg font-bold text-gray-900">解析视频</h3>
             </div>
-            <p class="text-sm text-gray-600">点击解析按钮，AI自动分析</p>
+            <p class="text-sm text-gray-500">点击解析，AI 自动分析</p>
           </div>
 
-          <!-- 步骤3 -->
-          <div class="glass-card-hover p-6 text-center">
-            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- 步骤3 - 蓝紫渐变圆形 + 白色图标 -->
+          <div class="group p-6 text-center bg-white/50 rounded-2xl hover:bg-white/80 transition-all duration-200">
+            <div class="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30 group-hover:shadow-xl group-hover:shadow-blue-500/40 transition-all">
+              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
               </svg>
             </div>
             <div class="flex items-center justify-center gap-2 mb-3">
-              <span class="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-              <h3 class="text-lg font-bold text-gray-900">下载/总结</h3>
+              <span class="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+              <h3 class="text-lg font-bold text-gray-900">下载视频</h3>
             </div>
-            <p class="text-sm text-gray-600">选择清晰度下载，查看AI总结</p>
+            <p class="text-sm text-gray-500">选择清晰度，立即下载</p>
           </div>
         </div>
       </div>
@@ -652,70 +685,80 @@
         </div>
       </div>
 
-      <!-- VIP转化引导区 -->
+      <!-- VIP转化引导区 - 蓝紫渐变 + 发光效果 -->
       <div class="max-w-5xl mx-auto mt-16 lg:mt-20 animate-slideUp" style="animation-delay: 0.4s">
-        <div class="ai-card p-8 lg:p-10">
-          <div class="flex flex-col lg:flex-row items-center gap-8">
+        <div class="bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 rounded-3xl p-8 lg:p-10 shadow-2xl shadow-blue-500/30 relative overflow-hidden">
+          <!-- 背景发光效果 -->
+          <div class="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-purple-400/20 animate-pulse"></div>
+          <div class="absolute -top-20 -right-20 w-40 h-40 bg-blue-400/30 rounded-full blur-3xl"></div>
+          <div class="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-400/30 rounded-full blur-3xl"></div>
+
+          <div class="relative flex flex-col lg:flex-row items-center gap-8">
             <div class="flex-1 text-center lg:text-left">
-              <h3 class="text-2xl lg:text-3xl font-bold gradient-text-ai mb-4">
+              <h3 class="text-2xl lg:text-3xl font-bold text-white mb-6">
                 解锁全部功能，享受VIP特权
               </h3>
               <div class="grid grid-cols-2 gap-4 text-left">
+                <!-- 无限下载 -->
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
                   </div>
                   <div>
-                    <div class="font-semibold text-gray-900">无限下载</div>
-                    <div class="text-sm text-gray-600">不限次数，畅快使用</div>
+                    <div class="font-semibold text-white">无限下载</div>
+                    <div class="text-xs text-blue-200">不限次数，畅快使用</div>
                   </div>
                 </div>
+                <!-- AI 总结 -->
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 bg-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
                     </svg>
                   </div>
                   <div>
-                    <div class="font-semibold text-gray-900">AI总结</div>
-                    <div class="text-sm text-gray-600">智能提取视频要点</div>
+                    <div class="font-semibold text-white">AI 总结</div>
+                    <div class="text-xs text-blue-200">智能提取视频要点</div>
                   </div>
                 </div>
+                <!-- 超清画质 -->
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                     </svg>
                   </div>
                   <div>
-                    <div class="font-semibold text-gray-900">超清画质</div>
-                    <div class="text-sm text-gray-600">支持4K/8K下载</div>
+                    <div class="font-semibold text-white">超清画质</div>
+                    <div class="text-xs text-blue-200">支持4K/8K下载</div>
                   </div>
                 </div>
+                <!-- 隐私保护 -->
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 bg-violet-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                     </svg>
                   </div>
                   <div>
-                    <div class="font-semibold text-gray-900">隐私保护</div>
-                    <div class="text-sm text-gray-600">下载记录不留痕</div>
+                    <div class="font-semibold text-white">隐私保护</div>
+                    <div class="text-xs text-blue-200">下载记录不留痕</div>
                   </div>
                 </div>
               </div>
             </div>
             <div class="flex-shrink-0 text-center">
               <div class="mb-4">
-                <span class="text-4xl lg:text-5xl font-bold text-gray-900">¥29</span>
-                <span class="text-lg text-gray-600">/月</span>
+                <span class="text-5xl lg:text-6xl font-bold text-white">¥29</span>
+                <span class="text-xl text-blue-200">/月</span>
               </div>
-              <button class="btn-gradient-ai text-lg px-10 py-4 shadow-xl shadow-purple-500/20">
+              <!-- 紫色渐变按钮 + 悬停上浮效果 -->
+              <button @click="handleUpgrade" class="w-full text-lg px-10 py-4 rounded-xl font-bold text-white bg-gradient-to-r from-purple-500 to-pink-500 shadow-xl shadow-purple-500/30 transition-all duration-300 hover:from-purple-600 hover:to-pink-600 hover:shadow-2xl hover:shadow-purple-500/40 hover:-translate-y-1 active:translate-y-0">
                 立即开通VIP
               </button>
-              <p class="text-xs text-gray-500 mt-3">随时取消，无隐藏费用</p>
+              <p class="text-xs text-blue-200 mt-3">随时取消，无隐藏费用</p>
             </div>
           </div>
         </div>
@@ -863,7 +906,14 @@ onMounted(() => {
     triggerUpdate.value++
   })
 })
+
 // 方法
+// Handle upgrade navigation
+const handleUpgrade = () => {
+  // Navigate to upgrade page
+  window.location.href = '/upgrade'
+}
+
 const getThumbnailUrl = (url) => {
   if (!url) return ''
   return `/api/proxy/thumbnail?url=${encodeURIComponent(url)}`
@@ -1785,6 +1835,28 @@ const sendAIChat = async () => {
 </script>
 
 <style scoped>
+/* 导航链接样式 */
+.nav-link {
+  position: relative;
+  padding-bottom: 6px;
+  transition: all 0.2s ease;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  transition: width 0.2s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1793,6 +1865,10 @@ const sendAIChat = async () => {
 }
 
 .btn-gradient-ai {
+  @apply bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium px-6 py-3 rounded-xl hover:from-purple-600 hover:to-pink-600 active:from-purple-700 active:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg;
+}
+
+.btn-gradient-vip {
   @apply bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium px-6 py-3 rounded-xl hover:from-purple-600 hover:to-pink-600 active:from-purple-700 active:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg;
 }
 
