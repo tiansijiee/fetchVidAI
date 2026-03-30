@@ -30,6 +30,9 @@
 
           <!-- VIP入口 & 用户菜单 -->
           <div class="flex items-center gap-3">
+            <!-- 语言切换按钮 -->
+            <LanguageSwitcher />
+
             <!-- VIP按钮 -->
             <button
               @click="handleUpgrade"
@@ -827,6 +830,7 @@ import { Markmap } from 'markmap-view'
 import UserMenu from '../components/UserMenu.vue'
 import auth from '../auth/auth'
 import { getFingerprint } from '../utils/fingerprint'
+import { addStructuredData, generateSoftwareSchema, setCanonicalUrl } from '../utils/seo'
 
 // 🔥 加在这里：强制刷新次数显示
 const triggerUpdate = ref(0)
@@ -905,6 +909,10 @@ onMounted(() => {
   removeAuthListener = auth.addListener(() => {
     triggerUpdate.value++
   })
+
+  // SEO 优化：添加结构化数据
+  addStructuredData(generateSoftwareSchema('zh'))
+  setCanonicalUrl('https://fetchvid.com/')
 })
 
 // 方法

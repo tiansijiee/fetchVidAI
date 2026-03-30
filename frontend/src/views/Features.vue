@@ -295,13 +295,21 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
 import UserMenu from '../components/UserMenu.vue'
+import { addStructuredData, generateSoftwareSchema, setCanonicalUrl } from '../utils/seo'
 
 const router = useRouter()
 
 const handleUpgrade = () => {
   router.push('/upgrade')
 }
+
+// SEO 优化
+onMounted(() => {
+  addStructuredData(generateSoftwareSchema('zh'))
+  setCanonicalUrl('https://fetchvid.com/features')
+})
 </script>
 
 <style scoped>

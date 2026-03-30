@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <!-- 首页 - 最高优先级 -->
+  <url>
+    <loc>https://fetchvid.com/</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fetchvid.com/" />
+  </url>
+
+  <!-- 视频下载页 -->
+  <url>
+    <loc>https://fetchvid.com/download</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/download" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/download" />
+  </url>
+
+  <!-- AI总结页 -->
+  <url>
+    <loc>https://fetchvid.com/summarize</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/summarize" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/summarize" />
+  </url>
+
+  <!-- 价格页 -->
+  <url>
+    <loc>https://fetchvid.com/pricing</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/pricing" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/pricing" />
+  </url>
+
+  <!-- 功能页 -->
+  <url>
+    <loc>https://fetchvid.com/features</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/features" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/features" />
+  </url>
+
+  <!-- 教程页 -->
+  <url>
+    <loc>https://fetchvid.com/tutorial</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/tutorial" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/tutorial" />
+  </url>
+
+  <!-- 平台落地页 - B站（SEO 长尾词优化） -->
+  <url>
+    <loc>https://fetchvid.com/bilibili</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/bilibili" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/bilibili" />
+  </url>
+
+  <!-- 平台落地页 - YouTube（SEO 长尾词优化） -->
+  <url>
+    <loc>https://fetchvid.com/youtube</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/youtube" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/youtube" />
+  </url>
+
+  <!-- 平台落地页 - 抖音（SEO 长尾词优化） -->
+  <url>
+    <loc>https://fetchvid.com/douyin</loc>
+    <lastmod>2024-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://fetchvid.com/douyin" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://fetchvid.com/en/douyin" />
+  </url>
+
+</urlset>

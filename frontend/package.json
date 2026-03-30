@@ -20,6 +20,7 @@
     "markmap-lib": "^0.15.8",
     "markmap-view": "^0.15.8",
     "vue": "^3.4.0",
+    "vue-i18n": "^9.14.4",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {

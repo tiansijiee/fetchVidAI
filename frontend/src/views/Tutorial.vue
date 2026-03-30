@@ -27,6 +27,9 @@
 
           <!-- VIP入口 & 用户菜单 -->
           <div class="flex items-center gap-3">
+            <!-- 语言切换按钮 -->
+            <LanguageSwitcher />
+
             <button
               @click="handleUpgrade"
               class="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-medium transition-all duration-200 shadow-md shadow-purple-500/30 hover:shadow-lg hover:shadow-purple-500/40 text-sm"
@@ -333,7 +336,9 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
 import UserMenu from '../components/UserMenu.vue'
+import { addStructuredData, generateSoftwareSchema, setCanonicalUrl } from '../utils/seo'
 
 const router = useRouter()
 
@@ -344,6 +349,12 @@ const handleUpgrade = () => {
 const goToDownload = () => {
   router.push('/download')
 }
+
+// SEO 优化
+onMounted(() => {
+  addStructuredData(generateSoftwareSchema('zh'))
+  setCanonicalUrl('https://fetchvid.com/tutorial')
+})
 </script>
 
 <style scoped>

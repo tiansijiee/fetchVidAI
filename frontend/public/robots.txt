@@ -1,0 +1,57 @@
+# robots.txt - FetchVid 视频下载器
+# 告诉搜索引擎爬虫哪些页面可以抓取
+
+User-agent: *
+Allow: /
+
+# 允许所有搜索引擎访问主要页面
+Allow: /download
+Allow: /pricing
+Allow: /features
+Allow: /tutorial
+Allow: /bilibili
+Allow: /youtube
+Allow: /douyin
+
+# 禁止访问用户相关页面（避免索引敏感内容）
+Disallow: /login
+Disallow: /upgrade
+Disallow: /test
+Disallow: /api/
+Disallow: /admin/
+
+# 禁止访问静态资源目录
+Disallow: /src/
+Disallow: /node_modules/
+
+# 禁止访问用户相关API
+Disallow: /api/auth/*
+Disallow: /api/user/*
+Disallow: /api/stripe/*
+
+# 站点地图
+Sitemap: https://fetchvid.com/sitemap.xml
+
+# 爬虫延迟（可选，防止服务器过载）
+Crawl-delay: 1
+
+# 特定搜索引擎规则
+# Google
+User-agent: Googlebot
+Allow: /
+
+# Bing
+User-agent: Bingbot
+Allow: /
+
+# 百度
+User-agent: Baiduspider
+Allow: /
+
+# 360搜索
+User-agent: 360Spider
+Allow: /
+
+# 搜狗
+User-agent: Sogou web spider
+Allow: /
