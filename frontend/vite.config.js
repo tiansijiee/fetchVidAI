@@ -29,5 +29,32 @@ export default defineConfig({
         }
       }
     }
+  },
+  build: {
+    // 生产环境优化
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        // 移除console.log
+        drop_console: true,
+        // 移除debugger
+        drop_debugger: true
+      }
+    },
+    // 分包优化
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vue核心
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          // UI组件库
+          'ui-vendor': ['element-plus'],
+          // 工具库
+          'utils': ['axios', 'dayjs']
+        }
+      }
+    },
+    // 代码分割阈值
+    chunkSizeWarningLimit: 1000
   }
 })

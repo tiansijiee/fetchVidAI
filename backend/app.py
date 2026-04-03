@@ -64,15 +64,23 @@ app = Flask(__name__, static_folder='../frontend/dist')
 # 全局配置
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 
-# 启用 CORS - 支持所有开发端口
+# 启用 CORS - 支持开发和生产环境
+# 从环境变量读取允许的域名，默认为本地开发端口
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').split(',')
+if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == ['']:
+    # 开发环境默认值
+    ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]
+
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+        "origins": ALLOWED_ORIGINS,
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Fingerprint", "X-Request-ID"],
         "supports_credentials": True
     }
 })
+
+print(f"[APP] CORS允许的域名: {ALLOWED_ORIGINS}", file=sys.stderr)
 
 # 全局下载任务存储
 download_tasks = {}
@@ -291,6 +299,16 @@ def _save_to_cache_legacy(video_id, source_file, filename):
 def index():
     """前端页面入口"""
     return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.route('/health')
+def simple_health_check():
+    """简单健康检查接口（用于监控工具）"""
+    return jsonify({
+        'success': True,
+        'status': 'healthy',
+        'timestamp': time.time()
+    })
 
 
 @app.route('/api/health', methods=['GET'])
@@ -1261,7 +1279,7 @@ def server_error(e):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('DEBUG', 'True').lower() == 'true'
+    debug = os.environ.get('DEBUG', 'False').lower() == 'true'  # 生产环境默认关闭DEBUG
 
     print("=" * 50)
     print("万能视频下载服务启动中...")
