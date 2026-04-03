@@ -189,7 +189,7 @@
       </div>
 
       <!-- 使用步骤说明 - 优化后的样式 -->
-      <div class="max-w-5xl 不要mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.2s">
+      <div class="max-w-5xl mx-auto mb-12 lg:mb-16 animate-slideUp" style="animation-delay: 0.2s">
         <div class="text-center mb-10">
           <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">简单三步，轻松下载</h2>
           <p class="text-gray-500 text-sm">无需安装软件，浏览器内直接完成</p>

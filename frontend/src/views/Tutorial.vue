@@ -150,7 +150,7 @@
             </div>
             <div>
               <h3 class="text-xl font-bold text-gray-900">如何下载视频</h3>
-              <p class="text-gray-500 text-sm">Video Download Guide</p>
+              <p class="text-gray-500 text-sm">视频下载指南</p>
             </div>
           </div>
 
@@ -196,7 +196,7 @@
             </div>
             <div>
               <h3 class="text-xl font-bold text-gray-900">如何使用AI总结</h3>
-              <p class="text-gray-500 text-sm">AI Summary Guide</p>
+              <p class="text-gray-500 text-sm">AI总结指南</p>
             </div>
           </div>
 
@@ -242,7 +242,7 @@
             </div>
             <div>
               <h3 class="text-xl font-bold text-gray-900">如何使用AI问答</h3>
-              <p class="text-gray-500 text-sm">AI Q&A Guide</p>
+              <p class="text-gray-500 text-sm">AI问答指南</p>
             </div>
           </div>
 

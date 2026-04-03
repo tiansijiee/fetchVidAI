@@ -17,6 +17,15 @@ import threading
 import time
 import hashlib
 
+# 🚀 优化的缓存模块（新增）
+try:
+    from video_cache_optimized import get_video_cache
+    CACHE_ENABLED = True
+    print("[APP] 优化的视频缓存模块: Enabled", file=sys.stderr)
+except ImportError as e:
+    print(f"[APP] 缓存模块导入失败: {e}", file=sys.stderr)
+    CACHE_ENABLED = False
+
 # AI功能模块（新增）
 try:
     from ai_routes import ai_bp, init_ai_routes
@@ -99,8 +108,13 @@ def check_ffmpeg_available():
 
 
 def get_download_dir():
-    """确保下载目录存在"""
-    download_dir = os.path.join(tempfile.gettempdir(), 'video_downloads')
+    """
+    确保下载目录存在
+    🚀 优化：使用项目目录而不是系统临时目录，以便硬链接可以工作
+    """
+    # 使用项目目录下的临时文件夹，而不是系统临时目录
+    # 这样缓存目录和下载目录在同一磁盘，硬链接才能正常工作
+    download_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_downloads')
     os.makedirs(download_dir, exist_ok=True)
     return download_dir
 
@@ -148,8 +162,33 @@ def extract_video_id(url, platform):
         return hashlib.md5(url.encode()).hexdigest()[:16]
 
 
-def get_cached_file(video_id):
-    """检查视频缓存是否存在并有效"""
+def get_cached_file(video_id, output_path):
+    """
+    检查视频缓存是否存在并有效
+    🚀 优化版：支持硬链接秒开
+    """
+    if not CACHE_ENABLED:
+        # 降级到旧实现
+        return _get_cached_file_legacy(video_id)
+
+    try:
+        cache = get_video_cache()
+        result = cache.get(video_id, output_path)
+
+        if result:
+            print(f"[CACHE] ⚡ HIT ({result.get('method', 'unknown')}): {video_id}", file=sys.stderr)
+            return result
+        else:
+            print(f"[CACHE] MISS: {video_id}", file=sys.stderr)
+            return None
+
+    except Exception as e:
+        print(f"[CACHE] Error checking cache: {e}", file=sys.stderr)
+        return None
+
+
+def _get_cached_file_legacy(video_id):
+    """旧版缓存实现（降级使用）"""
     try:
         cache_dir = get_cache_dir()
         cache_info_file = os.path.join(cache_dir, f'{video_id}.json')
@@ -184,12 +223,37 @@ def get_cached_file(video_id):
 
         return None
     except Exception as e:
-        print(f"[CACHE] Error checking cache: {e}", file=sys.stderr)
+        print(f"[CACHE] Error checking cache (legacy): {e}", file=sys.stderr)
         return None
 
 
 def save_to_cache(video_id, source_file, filename):
-    """将下载的文件保存到缓存"""
+    """
+    将下载的文件保存到缓存
+    🚀 优化版：使用移动代替复制，更快更高效
+    """
+    if not CACHE_ENABLED:
+        # 降级到旧实现
+        return _save_to_cache_legacy(video_id, source_file, filename)
+
+    try:
+        cache = get_video_cache()
+        success = cache.put(video_id, source_file, filename)
+
+        if success:
+            print(f"[CACHE] ✓ Saved: {video_id}", file=sys.stderr)
+        else:
+            print(f"[CACHE] ✗ Save failed: {video_id}", file=sys.stderr)
+
+        return success
+
+    except Exception as e:
+        print(f"[CACHE] Error saving to cache: {e}", file=sys.stderr)
+        return False
+
+
+def _save_to_cache_legacy(video_id, source_file, filename):
+    """旧版缓存保存（降级使用）"""
     try:
         cache_dir = get_cache_dir()
         import time
@@ -219,7 +283,7 @@ def save_to_cache(video_id, source_file, filename):
         print(f"[CACHE] Saved to cache: {cached_file}", file=sys.stderr)
         return True
     except Exception as e:
-        print(f"[CACHE] Error saving to cache: {e}", file=sys.stderr)
+        print(f"[CACHE] Error saving to cache (legacy): {e}", file=sys.stderr)
         return False
 
 
@@ -231,13 +295,31 @@ def index():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """健康检查接口"""
-    return jsonify({
+    """健康检查接口（包含缓存状态）"""
+    health_status = {
         'status': 'ok',
         'message': '万能视频下载服务运行中',
         'supported_platforms': ['B站', '微博', '知乎', 'YouTube', 'Twitter', 'TikTok', 'Instagram', 'Vimeo'],
-        'ffmpeg_available': os.path.exists('/usr/bin/ffmpeg') or os.path.exists('C:\\ffmpeg\\bin\\ffmpeg.exe')
-    })
+        'ffmpeg_available': os.path.exists('/usr/bin/ffmpeg') or os.path.exists('C:\\ffmpeg\\bin\\ffmpeg.exe'),
+        'cache_enabled': CACHE_ENABLED
+    }
+
+    # 🚀 添加缓存状态
+    if CACHE_ENABLED:
+        try:
+            cache = get_video_cache()
+            stats = cache.get_stats()
+            health_status['video_cache'] = {
+                'enabled': True,
+                'file_count': stats.get('file_count', 0),
+                'total_size_gb': stats.get('total_size_gb', 0),
+                'hit_rate_percent': stats.get('hit_rate_percent', 0),
+                'ttl_days': stats.get('ttl_days', 30)
+            }
+        except Exception as e:
+            health_status['video_cache'] = {'error': str(e)}
+
+    return jsonify(health_status)
 
 
 @app.route('/api/parse', methods=['POST', 'OPTIONS'])
@@ -426,16 +508,64 @@ def get_cache_stats():
     try:
         from video_parser import VideoParser
         cache_size = len(VideoParser._cache)
+
+        # 🚀 新增：优化的视频缓存统计
+        video_cache_stats = {}
+        if CACHE_ENABLED:
+            video_cache = get_video_cache()
+            video_cache_stats = video_cache.get_stats()
+
         return jsonify({
             'success': True,
             'data': {
-                'cache_size': cache_size,
-                'cache_ttl': VideoParser._cache_ttl,
-                'cache_enabled': True
+                # 内存缓存统计
+                'memory_cache': {
+                    'cache_size': cache_size,
+                    'cache_ttl': VideoParser._cache_ttl,
+                    'cache_enabled': True
+                },
+                # 🚀 视频文件缓存统计
+                'video_cache': video_cache_stats
             }
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'获取缓存信息失败: {str(e)}'}), 500
+
+
+@app.route('/api/cache/video/clear', methods=['POST'])
+def clear_video_cache():
+    """清空视频文件缓存"""
+    if not CACHE_ENABLED:
+        return jsonify({'success': False, 'message': '视频缓存功能未启用'}), 400
+
+    try:
+        cache = get_video_cache()
+        result = cache.clear_all()
+        return jsonify({
+            'success': True,
+            'message': f'已清空 {result["removed_count"]} 个缓存文件',
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'清空缓存失败: {str(e)}'}), 500
+
+
+@app.route('/api/cache/video/cleanup', methods=['POST'])
+def cleanup_video_cache():
+    """智能清理视频缓存"""
+    if not CACHE_ENABLED:
+        return jsonify({'success': False, 'message': '视频缓存功能未启用'}), 400
+
+    try:
+        cache = get_video_cache()
+        result = cache.smart_cleanup()
+        return jsonify({
+            'success': True,
+            'message': f'已清理 {result["removed_count"]} 个缓存文件',
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'清理缓存失败: {str(e)}'}), 500
 
 
 @app.route('/api/proxy/thumbnail', methods=['GET'])
@@ -562,15 +692,12 @@ def proxy_download():
                 video_id = extract_video_id(video_url, platform)
                 print(f"[DOWNLOAD-{task_id[:8]}] Video ID: {video_id}, Platform: {platform}", file=sys.stderr)
 
-                cached_data = get_cached_file(video_id)
+                # 🚀 优化版：使用硬链接实现秒开
+                cached_data = get_cached_file(video_id, output_path)
                 if cached_data:
-                    print(f"[DOWNLOAD-{task_id[:8]}] Using cached file", file=sys.stderr)
+                    print(f"[DOWNLOAD-{task_id[:8]}] ⚡ Using cached file (method: {cached_data.get('method', 'unknown')})", file=sys.stderr)
 
-                    # 从缓存复制文件
-                    import shutil
-                    shutil.copy2(cached_data['file_path'], output_path)
-
-                    file_size = os.path.getsize(output_path)
+                    file_size = cached_data.get('file_size', os.path.getsize(output_path))
                     download_tasks[task_id]['status'] = 'completed'
                     download_tasks[task_id]['file_size'] = file_size
                     download_tasks[task_id]['progress'] = 100

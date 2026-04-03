@@ -26,3 +26,11 @@ reportlab>=4.0.0  # PDF生成（可选）
 PyJWT>=2.8.0  # JWT Token处理
 bcrypt>=4.0.0  # 密码哈希
 stripe>=7.0.0  # Stripe支付
+
+# 生产环境优化
+Flask-Limiter>=3.5.0  # API 限流
+gunicorn>=21.2.0  # 生产环境 WSGI 服务器
+# redis>=5.0.0  # Redis 客户端（需要时取消注释）
+# psycopg2-binary>=2.9.9  # PostgreSQL 驱动（需要时取消注释）
+# sqlalchemy>=2.0.0  # 数据库 ORM（需要时取消注释）
+# alembic>=1.12.0  # 数据库迁移工具（需要时取消注释）

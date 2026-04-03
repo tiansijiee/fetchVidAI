@@ -298,9 +298,9 @@
 
               <!-- 思维导图 Tab -->
               <div v-else-if="activeTab === 'mindmap'" class="space-y-3">
-                <div v-if="summaryResult && summaryResult.mindmap" class="space-y-3">
+                <div v-if="summaryResult && summaryResult.mindmap && summaryResult.mindmap.branches && summaryResult.mindmap.branches.length > 0" class="space-y-3">
                   <div class="text-center font-semibold text-gray-900 text-sm mb-4 py-3 bg-gray-50 rounded-lg">
-                    {{ summaryResult.mindmap.root || '主题' }}
+                    {{ typeof summaryResult.mindmap.root === 'object' ? summaryResult.mindmap.root.text || summaryResult.mindmap.root.content || '主题' : summaryResult.mindmap.root || '主题' }}
                   </div>
                   <div class="space-y-2">
                     <div
@@ -310,12 +310,12 @@
                     >
                       <h4 class="font-semibold text-gray-900 text-xs mb-2 flex items-center gap-2">
                         <span class="w-5 h-5 bg-[#1890ff] text-white rounded-md flex items-center justify-center text-[10px]">{{ index + 1 }}</span>
-                        {{ branch.name }}
+                        {{ typeof branch === 'object' ? (branch.text || branch.name || branch.content || '') : branch }}
                       </h4>
-                      <ul class="space-y-1.5">
+                      <ul v-if="typeof branch === 'object' && branch.children && branch.children.length > 0" class="space-y-1.5">
                         <li v-for="(child, i) in branch.children" :key="i" class="text-xs text-gray-600 flex items-center gap-2">
                           <span class="w-1 h-1 bg-gray-300 rounded-full flex-shrink-0"></span>
-                          {{ child }}
+                          {{ typeof child === 'object' ? (child.text || child.content || child.name || '') : child }}
                         </li>
                       </ul>
                     </div>
@@ -326,6 +326,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"></path>
                   </svg>
                   <p class="text-xs">思维导图正在生成中...</p>
+                  <p v-if="summaryResult && summaryResult.mindmap" class="text-xs text-gray-400 mt-2">
+                    调试信息: {{ JSON.stringify(summaryResult.mindmap) }}
+                  </p>
                 </div>
               </div>
 

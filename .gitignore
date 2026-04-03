@@ -57,6 +57,9 @@ backend/temp/
 backend/*.db
 backend/*.sqlite
 backend/data/
+backend/video_cache/
+backend/ai_cache/
+backend/temp_downloads/
 
 # Claude Code local settings
 .claude/

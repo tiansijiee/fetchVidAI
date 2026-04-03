@@ -408,6 +408,30 @@ class VideoParser:
                     'success': False,
                     'message': '解析超时，请稍后重试'
                 }
+            elif 'Failed to parse JSON' in error_msg or 'Expecting value' in error_msg:
+                # B站 API返回空数据或其他平台JSON解析错误
+                return {
+                    'success': False,
+                    'message': '视频平台API返回异常，可能是视频已下架、访问受限或平台暂时不可用。请稍后重试或尝试其他视频。'
+                }
+            elif 'ExtractorError' in error_msg:
+                # 视频提取器错误
+                return {
+                    'success': False,
+                    'message': f'视频提取失败：{platform}平台可能已更新接口，请稍后重试'
+                }
+            elif 'geo' in error_msg.lower() or 'region' in error_msg.lower():
+                # 地区限制
+                return {
+                    'success': False,
+                    'message': '该视频在当前地区不可访问'
+                }
+            elif 'age' in error_msg.lower():
+                # 年龄限制
+                return {
+                    'success': False,
+                    'message': '该视频存在年龄限制，无法访问'
+                }
             else:
                 return {
                     'success': False,

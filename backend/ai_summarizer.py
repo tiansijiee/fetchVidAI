@@ -43,9 +43,11 @@ class AISummarizer:
             raise ValueError('DEEPSEEK_API_KEY环境变量未设置')
 
         # 初始化OpenAI客户端（Deepseek兼容）
+        # 设置超时时间：连接超时10秒，读取超时60秒
         self.client = OpenAI(
             api_key=self.api_key,
-            base_url=self.base_url
+            base_url=self.base_url,
+            timeout=60.0  # 60秒总超时
         )
 
     def summarize_video(self, subtitle_text: str, video_title: str = '',

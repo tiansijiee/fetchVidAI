@@ -123,6 +123,16 @@ except ImportError as e:
 # 导入认证模块
 from auth.auth import AuthManager, db_manager, check_rate_limit
 
+# 🚀 导入AI缓存模块（暂时禁用）
+# AI缓存功能暂时禁用，待问题修复后启用
+try:
+    from ai_cache_manager import get_ai_cache
+    AI_CACHE_ENABLED = False  # 暂时禁用AI缓存
+    print("[AI_ROUTES] AI缓存模块: Available but Disabled", file=sys.stderr)
+except ImportError as e:
+    print(f"[AI_ROUTES] AI缓存模块导入失败: {e}", file=sys.stderr)
+    AI_CACHE_ENABLED = False
+
 # 创建蓝图
 ai_bp = Blueprint('ai', __name__, url_prefix='/api/ai')
 
@@ -282,11 +292,45 @@ def summarize_video():
                     yield f"data: {json.dumps({'type': 'error', 'message': '无法获取视频内容。该视频可能没有字幕，ASR转写也失败了。'}, ensure_ascii=False)}\n\n"
                     return
 
+                # 🚀 步骤4.5: 检查AI缓存（新增）
+                # 提取video_id用于缓存
+                import hashlib
+                video_id = hashlib.md5(url.encode()).hexdigest()[:16]
+
+                if AI_CACHE_ENABLED:
+                    yield f"data: {json.dumps({'type': 'progress', 'message': '正在检查缓存...'}, ensure_ascii=False)}\n\n"
+
+                    ai_cache = get_ai_cache()
+                    cached_summary = ai_cache.get_summary(video_id, subtitle_text, video_title, video_description)
+
+                    if cached_summary:
+                        print(f"[AI-CACHE] Summary hit for {video_id}", file=sys.stderr)
+                        # 模拟流式输出缓存结果
+                        yield f"data: {json.dumps({'type': 'progress', 'message': '从缓存加载总结...'}, ensure_ascii=False)}\n\n"
+
+                        # 分块输出缓存内容（模拟流式）
+                        summary_text = cached_summary.get('summary', '')
+                        mindmap_data = cached_summary.get('mindmap', {})
+                        key_points = cached_summary.get('key_points', [])
+
+                        # 发送总结内容
+                        yield f"data: {json.dumps({'type': 'content', 'content': summary_text}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'progress', 'message': '加载思维导图...'}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'mindmap', 'mindmap': mindmap_data}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'key_points', 'key_points': key_points}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'done', 'from_cache': True}, ensure_ascii=False)}\n\n"
+                        return
+                    else:
+                        print(f"[AI-CACHE] Summary miss for {video_id}", file=sys.stderr)
+
                 # ========== 步骤5: 使用AI生成总结（流式） ==========
                 yield f"data: {json.dumps({'type': 'progress', 'message': 'AI正在思考并生成总结...'}, ensure_ascii=False)}\n\n"
 
                 # 调用AI生成总结（流式输出纯文本）
                 try:
+                    # 🚀 收集完整总结用于缓存
+                    full_summary_text = ""
+
                     stream = summarizer.client.chat.completions.create(
                         model="deepseek-chat",
                         messages=[
@@ -345,11 +389,29 @@ def summarize_video():
                     for chunk in stream:
                         if chunk.choices[0].delta.content:
                             content = chunk.choices[0].delta.content
+                            full_summary_text += content  # 收集完整文本
                             yield f"event: summary\ndata: {json.dumps({'token': content}, ensure_ascii=False)}\n\n"
 
                     # 发送完成事件
                     yield f"event: complete\ndata: {json.dumps({'message': '总结生成完成'}, ensure_ascii=False)}\n\n"
                     print(f"[AI] ✓ 总结生成成功!", file=sys.stderr)
+
+                    # 🚀 保存到AI缓存
+                    if AI_CACHE_ENABLED and full_summary_text:
+                        try:
+                            ai_cache = get_ai_cache()
+
+                            # 解析总结内容（简单的文本解析）
+                            summary_result = {
+                                'summary': full_summary_text,
+                                'mindmap': _parse_mindmap_from_summary(full_summary_text),
+                                'key_points': _parse_key_points_from_summary(full_summary_text)
+                            }
+
+                            ai_cache.put_summary(video_id, subtitle_text, summary_result, video_title, video_description)
+                            print(f"[AI-CACHE] Summary saved for {video_id}", file=sys.stderr)
+                        except Exception as cache_err:
+                            print(f"[AI-CACHE] Error saving summary: {cache_err}", file=sys.stderr)
 
                 except Exception as e:
                     print(f"[AI] 总结生成错误: {e}", file=sys.stderr)
@@ -422,9 +484,30 @@ def chat_stream():
         else:
             video_context += "注意: 该视频没有可用的字幕文本，回答时请说明这一点。\n"
 
+        # 🚀 生成video_id用于缓存
+        import hashlib
+        video_id = hashlib.md5(url.encode()).hexdigest()[:16] if url else 'unknown'
+
         # 调用AI问答流式输出
         def generate():
             try:
+                # 🚀 检查AI问答缓存
+                if AI_CACHE_ENABLED and url and subtitle_text:
+                    ai_cache = get_ai_cache()
+                    cached_answer = ai_cache.get_qa_answer(video_id, question, subtitle_text)
+
+                    if cached_answer:
+                        print(f"[AI-CACHE] QA hit for question: {question[:30]}...", file=sys.stderr)
+
+                        # 模拟流式输出缓存答案
+                        for char in cached_answer:
+                            yield f"data: {json.dumps({'token': char}, ensure_ascii=False)}\n\n"
+
+                        yield f"data: {json.dumps({'done': True, 'from_cache': True}, ensure_ascii=False)}\n\n"
+                        return
+                    else:
+                        print(f"[AI-CACHE] QA miss for question: {question[:30]}...", file=sys.stderr)
+
                 # 构建消息历史
                 messages = [
                     {"role": "system", "content": f"你是一个专业的视频内容分析助手。\n\n{video_context}\n请根据视频内容回答用户的问题。如果视频没有字幕文本，请诚实地告知用户。"},
@@ -441,6 +524,9 @@ def chat_stream():
                 # 添加当前问题
                 messages.append({"role": "user", "content": question})
 
+                # 🚀 收集完整答案用于缓存
+                full_answer = ""
+
                 # 调用Deepseek API
                 response = summarizer.client.chat.completions.create(
                     model="deepseek-chat",
@@ -456,10 +542,20 @@ def chat_stream():
                 for chunk in response:
                     if chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
+                        full_answer += content  # 收集完整答案
                         yield f"event: content\ndata: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
 
                 # 发送完成事件
                 yield f"event: complete\ndata: {json.dumps({'message': '回答完成'}, ensure_ascii=False)}\n\n"
+
+                # 🚀 保存到AI缓存
+                if AI_CACHE_ENABLED and full_answer and url and subtitle_text:
+                    try:
+                        ai_cache = get_ai_cache()
+                        ai_cache.put_qa_answer(video_id, question, full_answer, subtitle_text)
+                        print(f"[AI-CACHE] QA answer saved for: {question[:30]}...", file=sys.stderr)
+                    except Exception as cache_err:
+                        print(f"[AI-CACHE] Error saving QA answer: {cache_err}", file=sys.stderr)
 
             except Exception as e:
                 print(f"[AI] 流式生成错误: {e}", file=sys.stderr)
@@ -897,52 +993,114 @@ def summarize_video_char_stream():
 
                 print(f"[AI] 流式完成，总长度: {len(full_content)}", file=sys.stderr)
 
-                # ========== 步骤5: 发送思维导图（基于实际总结内容） ==========
-                # 解析总结内容生成思维导图
-                mindmap_lines = []
-                mindmap_lines.append(f"# {video_title}\n")
+                # ========== 步骤5: AI独立生成动态思维导图 ==========
+                print(f"[AI] 开始生成动态思维导图", file=sys.stderr)
 
-                # 解析总结内容
-                lines = full_content.split('\n')
-                current_section = None
-                current_items = []
+                try:
+                    yield f"event: progress\ndata: {json.dumps({'message': '正在生成思维导图...'}, ensure_ascii=False)}\n\n"
 
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
+                    # 构建思维导图专用提示词
+                    mindmap_prompt = f"""请根据以下视频字幕内容，生成一份动态的思维导图（Markdown格式）。
 
-                    # 检测章节标题
-                    if line.startswith('【') and line.endswith('】'):
-                        # 保存上一个章节
-                        if current_section and current_items:
-                            mindmap_lines.append(f"## {current_section}")
-                            for item in current_items:
-                                mindmap_lines.append(f"- {item}")
-                            mindmap_lines.append("")
+## 视频信息
+标题: {video_title}
+描述: {video_description or '无'}
 
-                        current_section = line[1:-1]  # 去掉【】
-                        current_items = []
-                    # 检测列表项
-                    elif line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')) or line.startswith(('-', '•')):
-                        item = line.lstrip('0123456789.-•• \t')
-                        if item:
-                            current_items.append(item)
-                    # 普通内容
-                    elif current_section:
-                        current_items.append(line)
+## 字幕内容（前5000字）
+{subtitle_text[:5000]}
 
-                # 保存最后一个章节
-                if current_section and current_items:
-                    mindmap_lines.append(f"## {current_section}")
-                    for item in current_items:
-                        mindmap_lines.append(f"- {item}")
+## 要求
+请严格按照以下格式生成思维导图：
 
-                # 添加生成时间
-                mindmap_lines.append(f"\n---\n*生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
+1. 一级标题（#）：视频主题（使用视频标题）
+2. 二级标题（##）：根据视频实际内容动态划分3-6个主要分支
+   - 禁止使用固定标题：视频概述、内容大纲、核心知识要点
+   - 应根据视频内容使用真实模块名，例如：
+     * 技术教程类：项目背景、环境搭建、核心实现、高级功能、调试技巧
+     * 知识讲解类：概念定义、原理分析、实际案例、常见误区
+     * 产品评测类：外观设计、硬件配置、性能测试、使用体验、总结建议
+3. 三级内容（- 或 •）：每个分支下的3-5个关键要点
+4. 使用标准的Markdown格式
+5. 确保结构清晰、层次分明、内容准确
 
-                mindmap_text = '\n'.join(mindmap_lines)
-                yield f"event: mindmap\ndata: {json.dumps({'text': mindmap_text}, ensure_ascii=False)}\n\n"
+请直接输出Markdown格式的思维导图，不要添加任何其他说明文字。"""
+
+                    # 调用AI生成思维导图
+                    mindmap_response = summarizer.client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[
+                            {
+                                'role': 'system',
+                                'content': '你是一个专业的思维导图生成助手，擅长从视频内容中提取关键信息并生成结构清晰的思维导图。请严格按照Markdown格式输出，一级标题为视频主题，二级标题为动态分支，三级内容为关键要点。禁止使用固定的模板标题。'
+                            },
+                            {
+                                'role': 'user',
+                                'content': mindmap_prompt
+                            }
+                        ],
+                        temperature=0.7,
+                        max_tokens=3000
+                    )
+
+                    # 获取思维导图文本
+                    mindmap_text = mindmap_response.choices[0].message.content.strip()
+
+                    # 添加生成时间
+                    mindmap_text += f"\n\n---\n*生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*"
+
+                    print(f"[AI] ✓ 思维导图生成成功，长度: {len(mindmap_text)}", file=sys.stderr)
+                    yield f"event: mindmap\ndata: {json.dumps({'text': mindmap_text}, ensure_ascii=False)}\n\n"
+
+                except Exception as e:
+                    print(f"[AI] 思维导图生成失败: {e}", file=sys.stderr)
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
+
+                    # 降级方案：使用总结内容生成基本思维导图
+                    mindmap_lines = []
+                    mindmap_lines.append(f"# {video_title}\n")
+
+                    lines = full_content.split('\n')
+                    current_section = None
+                    current_items = []
+
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        # 检测章节标题
+                        if line.startswith('【') and line.endswith('】'):
+                            # 保存上一个章节
+                            if current_section and current_items:
+                                mindmap_lines.append(f"## {current_section}")
+                                for item in current_items:
+                                    mindmap_lines.append(f"- {item}")
+                                mindmap_lines.append("")
+
+                            current_section = line[1:-1]
+                            current_items = []
+
+                        # 检测列表项
+                        elif re.match(r'^\d+\.\s+', line) or line.startswith(('-', '\u2022', '*')):
+                            item = re.sub(r'^\d+\.\s+', '', line).lstrip('-*•\u2022 \t')
+                            if item:
+                                current_items.append(item)
+
+                        # 普通内容
+                        elif current_section:
+                            current_items.append(line)
+
+                    # 保存最后一个章节
+                    if current_section and current_items:
+                        mindmap_lines.append(f"## {current_section}")
+                        for item in current_items:
+                            mindmap_lines.append(f"- {item}")
+
+                    mindmap_lines.append(f"\n---\n*生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
+
+                    mindmap_text = '\n'.join(mindmap_lines)
+                    yield f"event: mindmap\ndata: {json.dumps({'text': mindmap_text}, ensure_ascii=False)}\n\n"
 
                 # ========== 步骤6: 发送配额信息 ==========
                 # 获取剩余次数
@@ -983,3 +1141,201 @@ def summarize_video_char_stream():
             'success': False,
             'message': f'总结失败: {str(e)[:200]}'
         }), 500
+
+
+# 🚀 AI缓存辅助函数（新增）
+def _parse_mindmap_from_summary(summary_text: str) -> dict:
+    """从总结文本中解析思维导图结构（函数体在前面已定义）"""
+    pass
+
+
+# 🚀 AI缓存统计API（新增）
+@ai_bp.route('/cache/stats', methods=['GET'])
+def get_ai_cache_stats():
+    """获取AI缓存统计信息"""
+    if not AI_CACHE_ENABLED:
+        return jsonify({
+            'success': False,
+            'message': 'AI缓存功能未启用'
+        }), 400
+
+    try:
+        ai_cache = get_ai_cache()
+        stats = ai_cache.get_stats()
+
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取缓存统计失败: {str(e)}'
+        }), 500
+
+
+@ai_bp.route('/cache/clear', methods=['POST'])
+def clear_ai_cache():
+    """清空AI缓存"""
+    if not AI_CACHE_ENABLED:
+        return jsonify({
+            'success': False,
+            'message': 'AI缓存功能未启用'
+        }), 400
+
+    try:
+        ai_cache = get_ai_cache()
+        result = ai_cache.clear_all()
+
+        return jsonify({
+            'success': True,
+            'message': f"已清空 {result['removed_count']} 个缓存文件",
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'清空缓存失败: {str(e)}'
+        }), 500
+
+
+@ai_bp.route('/cache/cleanup', methods=['POST'])
+def cleanup_ai_cache():
+    """清理过期的AI缓存"""
+    if not AI_CACHE_ENABLED:
+        return jsonify({
+            'success': False,
+            'message': 'AI缓存功能未启用'
+        }), 400
+
+    try:
+        ai_cache = get_ai_cache()
+        result = ai_cache.cleanup()
+
+        return jsonify({
+            'success': True,
+            'message': f"已清理 {result['removed_count']} 个过期缓存",
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'清理缓存失败: {str(e)}'
+        }), 500
+
+
+def _parse_mindmap_from_summary(summary_text: str) -> dict:
+    """从总结文本中解析思维导图结构"""
+    mindmap = {
+        'root': {'text': '视频内容', 'children': []},
+        'branches': []
+    }
+
+    try:
+        lines = summary_text.split('\n')
+        current_section = None
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 识别章节标题（多种格式）
+            # 【内容大纲】
+            if re.match(r'^【.*】$', line):
+                current_section = line.strip('【】')
+                mindmap['branches'].append({
+                    'text': current_section,
+                    'children': []
+                })
+            # 编号章节 (1. 或 1、)
+            elif re.match(r'^\d+[\.\、]\s+', line):
+                section_text = re.sub(r'^\d+[\.\、]\s+', '', line)
+                current_section = section_text
+                mindmap['branches'].append({
+                    'text': section_text,
+                    'children': []
+                })
+            # 内容点 (支持 •、-、*、• Unicode字符)
+            elif line.startswith(('•', '-', '*', '\u2022')):
+                # 内容点
+                point_text = line.lstrip('•-*\u2022').strip()
+                if point_text and mindmap['branches']:
+                    mindmap['branches'][-1]['children'].append({
+                        'text': point_text
+                    })
+                elif point_text and not mindmap['branches']:
+                    # 如果还没有分支，创建一个默认分支
+                    mindmap['branches'].append({
+                        'text': '内容要点',
+                        'children': [{'text': point_text}]
+                    })
+
+        # 如果没有解析出任何分支，创建默认分支
+        if not mindmap['branches']:
+            # 尝试按段落分割
+            paragraphs = [p.strip() for p in summary_text.split('\n\n') if p.strip()]
+            if len(paragraphs) > 1:
+                for para in paragraphs[:5]:  # 最多5个段落
+                    sentences = [s.strip() for s in para.split('。') if s.strip() and len(s.strip()) > 5]
+                    if sentences:
+                        mindmap['branches'].append({
+                            'text': sentences[0][:30],
+                            'children': [{'text': s} for s in sentences[1:4]]
+                        })
+            else:
+                # 单段落，按句子分割
+                sentences = [s.strip() for s in summary_text.split('。') if s.strip() and len(s.strip()) > 8]
+                for i, sentence in enumerate(sentences[:6]):
+                    mindmap['branches'].append({
+                        'text': f'要点{i+1}',
+                        'children': [{'text': sentence}]
+                    })
+
+    except Exception as e:
+        print(f"[AI-CACHE] Error parsing mindmap: {e}", file=sys.stderr)
+        # 发生错误时，至少返回一个默认结构
+        mindmap['branches'] = [{
+            'text': '视频内容概览',
+            'children': [{'text': '总结内容解析中...'}]
+        }]
+
+    return mindmap
+
+
+def _parse_key_points_from_summary(summary_text: str) -> list:
+    """从总结文本中解析核心要点"""
+    key_points = []
+
+    try:
+        lines = summary_text.split('\n')
+        in_key_points_section = False
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 识别核心要点部分
+            if '【核心知识要点】' in line or '核心要点' in line:
+                in_key_points_section = True
+                continue
+
+            # 提取要点
+            if in_key_points_section:
+                if line.startswith('•') or line.startswith('-'):
+                    point_text = line.lstrip('•-').strip()
+                    if point_text:
+                        key_points.append(point_text)
+                elif re.match(r'^\d+[\.、]\s*', line):
+                    point_text = re.sub(r'^\d+[\.、]\s*', '', line)
+                    if point_text:
+                        key_points.append(point_text)
+                elif line.startswith('【'):
+                    # 进入下一个章节
+                    break
+
+    except Exception as e:
+        print(f"[AI-CACHE] Error parsing key points: {e}", file=sys.stderr)
+
+    return key_points
