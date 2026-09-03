@@ -10,6 +10,15 @@ import hashlib
 from typing import Dict, List, Optional
 from functools import lru_cache
 
+# 代理管理器（用于绕过B站IP封禁）
+try:
+    from proxy_manager import get_proxy_manager
+    _proxy_manager = get_proxy_manager()
+    PROXY_ENABLED = True
+except ImportError:
+    _proxy_manager = None
+    PROXY_ENABLED = False
+
 
 class VideoParser:
     """视频解析器"""
@@ -332,6 +341,12 @@ class VideoParser:
                     }
                 }
             })
+            # 添加代理支持（B站IP封禁问题）
+            if PROXY_ENABLED and _proxy_manager:
+                bilibili_proxy = _proxy_manager.get_proxy('bilibili')
+                if bilibili_proxy:
+                    ydl_opts['proxy'] = bilibili_proxy
+                    print(f"[PARSE] 使用B站代理: {bilibili_proxy[:30]}...", file=sys.stderr)
         elif platform == 'youtube':
             ydl_opts.update({
                 'socket_timeout': 10,  # YouTube 响应较快

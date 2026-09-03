@@ -89,6 +89,17 @@ download_tasks = {}
 bilibili_last_download = {}
 BILIBILI_DOWNLOAD_INTERVAL = 5  # 同一用户两次B站下载最小间隔（秒）
 
+# 代理管理器（用于绕过B站IP封禁）
+try:
+    from proxy_manager import get_proxy_manager
+    PROXY_MANAGER = get_proxy_manager()
+    PROXY_ENABLED = True
+    print("[APP] 代理管理器: 已加载", file=sys.stderr)
+except ImportError as e:
+    print(f"[APP] 代理管理器导入失败: {e}", file=sys.stderr)
+    PROXY_ENABLED = False
+    PROXY_MANAGER = None
+
 
 def check_ffmpeg_available():
     """检查ffmpeg是否可用"""
@@ -829,6 +840,14 @@ def proxy_download():
                     # 添加B站专用的重试和超时配置
                     print(f"[DOWNLOAD-{task_id[:8]}] 配置B站下载参数", file=sys.stderr)
 
+                    # 获取B站代理（如果配置了）
+                    bilibili_proxy_config = None
+                    if PROXY_ENABLED and PROXY_MANAGER:
+                        bilibili_proxy = PROXY_MANAGER.get_proxy('bilibili')
+                        if bilibili_proxy:
+                            bilibili_proxy_config = bilibili_proxy
+                            print(f"[DOWNLOAD-{task_id[:8]}] 使用代理: {bilibili_proxy[:30]}...", file=sys.stderr)
+
                     ydl_opts.update({
                         'retries': 15,  # 增加重试次数到15
                         'file_access_retries': 15,
@@ -867,6 +886,10 @@ def proxy_download():
                             'file_access': lambda n: min(5, n * 2),
                         },
                     })
+
+                    # 添加代理配置（如果有）
+                    if bilibili_proxy_config:
+                        ydl_opts['proxy'] = bilibili_proxy_config
 
                     # 根据用户选择的格式ID设置下载格式
                     if format_id and format_id != 'best':
